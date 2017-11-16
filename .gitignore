@@ -1,0 +1,19 @@
+# Executables:
+*.exe
+*.dll
+
+# Large data files:
+data/raw/*.csv
+data/intermediate/*.csv
+data/*.csv
+
+# Python:
+*.pyc
+
+# Pycharm files
+*.iml
+*.xml
+
+# Figures
+*.pdf
+*.png

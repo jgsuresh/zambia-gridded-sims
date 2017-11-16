@@ -1,0 +1,428 @@
+{
+    "Defaults": {
+        "MSP_mean_antibody_distribution": {
+            "AxisNames": [
+                "age"
+            ], 
+            "AxisScaleFactors": [
+                365
+            ], 
+            "AxisUnits": [
+                "years"
+            ], 
+            "NumDistributionAxes": 1, 
+            "NumPopulationGroups": [
+                23
+            ], 
+            "PopulationGroups": [
+                [
+                    0, 
+                    0.5, 
+                    1.5, 
+                    2.5, 
+                    3.5, 
+                    4.5, 
+                    5.5, 
+                    6.5, 
+                    7.5, 
+                    8.5, 
+                    9.5, 
+                    10.5, 
+                    11.5, 
+                    12.5, 
+                    13.5, 
+                    14.5, 
+                    17.5, 
+                    22.5, 
+                    27.5, 
+                    35.0, 
+                    45.0, 
+                    55.0, 
+                    80.0
+                ]
+            ], 
+            "ResultScaleFactor": 1, 
+            "ResultUnits": "mean fraction of antibody variants", 
+            "ResultValues": [
+                0, 
+                0.234544, 
+                0.601625, 
+                0.811961, 
+                0.923173, 
+                0.974891, 
+                0.976374, 
+                0.997682, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1, 
+                1
+            ]
+        }, 
+        "MSP_variance_antibody_distribution": {
+            "AxisNames": [
+                "age"
+            ], 
+            "AxisScaleFactors": [
+                365
+            ], 
+            "AxisUnits": [
+                "years"
+            ], 
+            "NumDistributionAxes": 1, 
+            "NumPopulationGroups": [
+                23
+            ], 
+            "PopulationGroups": [
+                [
+                    0, 
+                    0.5, 
+                    1.5, 
+                    2.5, 
+                    3.5, 
+                    4.5, 
+                    5.5, 
+                    6.5, 
+                    7.5, 
+                    8.5, 
+                    9.5, 
+                    10.5, 
+                    11.5, 
+                    12.5, 
+                    13.5, 
+                    14.5, 
+                    17.5, 
+                    22.5, 
+                    27.5, 
+                    35.0, 
+                    45.0, 
+                    55.0, 
+                    80.0
+                ]
+            ], 
+            "ResultScaleFactor": 1, 
+            "ResultUnits": "mean fraction of antibody variants", 
+            "ResultValues": [
+                0, 
+                0.188242, 
+                0.154256, 
+                0.123081, 
+                0.0957095, 
+                0.0598369, 
+                0.0530748, 
+                0.0180485, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0, 
+                0
+            ]
+        }, 
+        "PfEMP1_mean_antibody_distribution": {
+            "AxisNames": [
+                "age"
+            ], 
+            "AxisScaleFactors": [
+                365
+            ], 
+            "AxisUnits": [
+                "years"
+            ], 
+            "NumDistributionAxes": 1, 
+            "NumPopulationGroups": [
+                23
+            ], 
+            "PopulationGroups": [
+                [
+                    0, 
+                    0.5, 
+                    1.5, 
+                    2.5, 
+                    3.5, 
+                    4.5, 
+                    5.5, 
+                    6.5, 
+                    7.5, 
+                    8.5, 
+                    9.5, 
+                    10.5, 
+                    11.5, 
+                    12.5, 
+                    13.5, 
+                    14.5, 
+                    17.5, 
+                    22.5, 
+                    27.5, 
+                    35.0, 
+                    45.0, 
+                    55.0, 
+                    80.0
+                ]
+            ], 
+            "ResultScaleFactor": 1, 
+            "ResultUnits": "mean fraction of antibody variants", 
+            "ResultValues": [
+                0, 
+                0.0324022, 
+                0.120237, 
+                0.198248, 
+                0.284378, 
+                0.353919, 
+                0.420356, 
+                0.491313, 
+                0.538922, 
+                0.603536, 
+                0.643097, 
+                0.678818, 
+                0.716676, 
+                0.75551, 
+                0.780147, 
+                0.799778, 
+                0.858714, 
+                0.917141, 
+                0.947824, 
+                0.971908, 
+                0.98889, 
+                0.992636, 
+                0.993371
+            ]
+        }, 
+        "PfEMP1_variance_antibody_distribution": {
+            "AxisNames": [
+                "age"
+            ], 
+            "AxisScaleFactors": [
+                365
+            ], 
+            "AxisUnits": [
+                "years"
+            ], 
+            "NumDistributionAxes": 1, 
+            "NumPopulationGroups": [
+                23
+            ], 
+            "PopulationGroups": [
+                [
+                    0, 
+                    0.5, 
+                    1.5, 
+                    2.5, 
+                    3.5, 
+                    4.5, 
+                    5.5, 
+                    6.5, 
+                    7.5, 
+                    8.5, 
+                    9.5, 
+                    10.5, 
+                    11.5, 
+                    12.5, 
+                    13.5, 
+                    14.5, 
+                    17.5, 
+                    22.5, 
+                    27.5, 
+                    35.0, 
+                    45.0, 
+                    55.0, 
+                    80.0
+                ]
+            ], 
+            "ResultScaleFactor": 1, 
+            "ResultUnits": "mean fraction of antibody variants", 
+            "ResultValues": [
+                0, 
+                0.0294068, 
+                0.0324244, 
+                0.0300821, 
+                0.0356454, 
+                0.0284786, 
+                0.02885, 
+                0.0267168, 
+                0.0282555, 
+                0.0265959, 
+                0.0242904, 
+                0.0256275, 
+                0.0201345, 
+                0.0190657, 
+                0.0159158, 
+                0.0175301, 
+                0.024936, 
+                0.0146456, 
+                0.00902167, 
+                0.00795378, 
+                0.00381425, 
+                0.00215853, 
+                0.00238006
+            ]
+        }, 
+        "nonspec_mean_antibody_distribution": {
+            "AxisNames": [
+                "age"
+            ], 
+            "AxisScaleFactors": [
+                365
+            ], 
+            "AxisUnits": [
+                "years"
+            ], 
+            "NumDistributionAxes": 1, 
+            "NumPopulationGroups": [
+                23
+            ], 
+            "PopulationGroups": [
+                [
+                    0, 
+                    0.5, 
+                    1.5, 
+                    2.5, 
+                    3.5, 
+                    4.5, 
+                    5.5, 
+                    6.5, 
+                    7.5, 
+                    8.5, 
+                    9.5, 
+                    10.5, 
+                    11.5, 
+                    12.5, 
+                    13.5, 
+                    14.5, 
+                    17.5, 
+                    22.5, 
+                    27.5, 
+                    35.0, 
+                    45.0, 
+                    55.0, 
+                    80.0
+                ]
+            ], 
+            "ResultScaleFactor": 1, 
+            "ResultUnits": "mean fraction of antibody variants", 
+            "ResultValues": [
+                0, 
+                0.0203082, 
+                0.0715884, 
+                0.1139, 
+                0.163942, 
+                0.201001, 
+                0.244784, 
+                0.291177, 
+                0.326725, 
+                0.38623, 
+                0.417306, 
+                0.43832, 
+                0.485878, 
+                0.544856, 
+                0.579277, 
+                0.600643, 
+                0.70711, 
+                0.831847, 
+                0.906262, 
+                0.960359, 
+                0.991224, 
+                0.99555, 
+                0.995555
+            ]
+        }, 
+        "nonspec_variance_antibody_distribution": {
+            "AxisNames": [
+                "age"
+            ], 
+            "AxisScaleFactors": [
+                365
+            ], 
+            "AxisUnits": [
+                "years"
+            ], 
+            "NumDistributionAxes": 1, 
+            "NumPopulationGroups": [
+                23
+            ], 
+            "PopulationGroups": [
+                [
+                    0, 
+                    0.5, 
+                    1.5, 
+                    2.5, 
+                    3.5, 
+                    4.5, 
+                    5.5, 
+                    6.5, 
+                    7.5, 
+                    8.5, 
+                    9.5, 
+                    10.5, 
+                    11.5, 
+                    12.5, 
+                    13.5, 
+                    14.5, 
+                    17.5, 
+                    22.5, 
+                    27.5, 
+                    35.0, 
+                    45.0, 
+                    55.0, 
+                    80.0
+                ]
+            ], 
+            "ResultScaleFactor": 1, 
+            "ResultUnits": "mean fraction of antibody variants", 
+            "ResultValues": [
+                0, 
+                0.017719, 
+                0.020437, 
+                0.019438, 
+                0.0260984, 
+                0.028144, 
+                0.0300586, 
+                0.0320325, 
+                0.0322701, 
+                0.0350794, 
+                0.0360662, 
+                0.0380147, 
+                0.0342395, 
+                0.040145, 
+                0.039053, 
+                0.0393461, 
+                0.0608308, 
+                0.0428094, 
+                0.0292269, 
+                0.0244917, 
+                0.00851821, 
+                0.00547321, 
+                0.0056759
+            ]
+        }
+    }, 
+    "Metadata": {
+        "Author": "mnikolov", 
+        "IdReference": "Gridded world grump30arcsec", 
+        "NodeCount": 1
+    }, 
+    "Nodes": [
+        {
+            "NodeID": 1632969268
+        }
+    ]
+}
