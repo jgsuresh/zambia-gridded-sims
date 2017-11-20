@@ -33,6 +33,7 @@ class COMPS_Experiment:
     def __init__(self,
                  base,
                  exp_name,
+                 catch='all',
                  grid_pop_csv_file=None,
                  imm_1node_fp=None,
                  migration_on=True,
@@ -45,6 +46,7 @@ class COMPS_Experiment:
         self.base = base
         self.exp_name = exp_name
         self.exp_base = base + 'data/COMPS_experiments/{}/'.format(exp_name)
+        self.catch = catch
         self.grid_pop_csv_file = grid_pop_csv_file
         self.imm_1node_fp = imm_1node_fp
 
@@ -528,10 +530,16 @@ class COMPS_Experiment:
                                             'fraction1': float(itn_events['fast_fraction'][itn])},
                                    nodeIDs=[nodeid_lookup[itn_events['grid.cell'][itn]]])
                 # Add birth nets
-                if itn < (len(itn_events) - 1):
+                if itn < (len(itn_events)-1) and (itn_events['grid.cell'][itn+1] == itn_events['grid.cell'][itn]):
                     birth_duration = float(itn_events['simday'][itn + 1] - itn_events['simday'][itn] - 1)
                 else:
                     birth_duration = -1
+
+                # This code only works for non-pixel-specific file format:
+                # if itn < (len(itn_events) - 1):
+                #     birth_duration = float(itn_events['simday'][itn + 1] - itn_events['simday'][itn] - 1)
+                # else:
+                #     birth_duration = -1
 
                 add_ITN_age_season(cb, start=float(itn_events['simday'][itn]),
                                    age_dep={'youth_cov': float(itn_events['age_cov'][itn]), 'youth_min_age': 5,
@@ -572,13 +580,14 @@ class COMPS_Experiment:
 
         if include_stepd:
             for sd in range(len(stepd_events)):
+                cov = np.min([1.,float(self.rcd_people_num) / float(pop_lookup[stepd_events['grid.cell'][sd]])])
                 add_drug_campaign(cb, campaign_type='rfMDA', drug_code='AL',
                                   start_days=[float(stepd_events['simday'][sd])],
                                   # coverage=float(stepd_events['coverage'][sd]),
                                   # coverage=float(self.rcd_people_num)/float(self.pop_start),
-                                  coverage=float(self.rcd_people_num) / float(pop_lookup[itn_events['grid.cell'][itn]]),
+                                  coverage=cov,
                                   interval=float(stepd_events['interval'][sd]),
-                                  nodes=[nodeid_lookup[itn_events['grid.cell'][itn]]])
+                                  nodes=[nodeid_lookup[itn_events['grid.cell'][sd]]])
 
         return {"ITNs": include_itn,
                 "IRS": include_irs,
@@ -615,10 +624,10 @@ class COMPS_Experiment:
 
 
     def submit_experiment(self,num_seeds=1,intervention_sweep=False,larval_sweep=False,migration_sweep=False,vector_migration_sweep=False,
-                          custom_name=None):
+                          simple_intervention_sweep=True,custom_name=None):
 
         # Implement the actual (not dummy) baseline healthseeking
-        # self.implement_baseline_healthseeking()
+        self.implement_baseline_healthseeking()
 
 
         modlists = []
@@ -640,6 +649,18 @@ class COMPS_Experiment:
         if vector_migration_sweep:
             new_modlist = [ModFn(self.vector_migration_sweeper, vector_migration_on) for vector_migration_on in [True, False]]
             modlists.append(new_modlist)
+
+        if simple_intervention_sweep:
+            new_modlist = [
+                ModFn(self.implement_interventions, True, False, False, False, False),
+                ModFn(self.implement_interventions, False, True, False, False, False),
+                ModFn(self.implement_interventions, False, False, True, False, False),
+                ModFn(self.implement_interventions, False, False, False, True, False),
+                ModFn(self.implement_interventions, False, False, False, False, True),
+                ModFn(self.implement_interventions, True, True, True, True, True)
+            ]
+            modlists.append(new_modlist)
+
 
         # if intervention_sweep:
         #     # Interventions to turn on or off
@@ -673,5 +694,5 @@ class COMPS_Experiment:
         # SetupParser.init()
         # SetupParser.set("HPC","priority","Normal")
         exp_manager = ExperimentManagerFactory.init()
-        exp_manager.run_simulations(config_builder=self.cb)#, exp_name=run_name) #, exp_builder=builder)
+        exp_manager.run_simulations(config_builder=self.cb, exp_name=run_name, exp_builder=builder)
 
