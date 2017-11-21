@@ -41,7 +41,13 @@ class COMPS_Experiment:
                  rcd_people_num=5,
                  start_year=2001,
                  sim_length_years=19,
-                 num_cores=12):
+                 num_cores=12,
+                 healthseek_fn=None,
+                 itn_fn=None,
+                 irs_fn=None,
+                 msat_fn=None,
+                 mda_fn=None,
+                 stepd_fn=None):
 
         self.base = base
         self.exp_name = exp_name
@@ -59,6 +65,12 @@ class COMPS_Experiment:
 
         self.num_cores = num_cores
 
+        self.healthseek_fn = healthseek_fn
+        self.itn_fn = itn_fn
+        self.irs_fn = irs_fn
+        self.msat_fn = msat_fn
+        self.mda_fn = mda_fn
+        self.stepd_fn = stepd_fn
         # Ensure directories exist:
         self.ensure_filesystem()
 
@@ -246,7 +258,11 @@ class COMPS_Experiment:
         self.cb.params['Disable_IP_Whitelist'] = 1
 
         # Event information files
-        healthseek_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_healthseek_events.csv'
+
+        if self.healthseek_fn==None:
+            healthseek_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_healthseek_events.csv'
+        else:
+            healthseek_event_file = self.healthseek_fn
         healthseek_events = pd.read_csv(healthseek_event_file)
 
         # Compute simulation days relative to start date or use default in file
@@ -489,11 +505,30 @@ class COMPS_Experiment:
         self.cb.params['Disable_IP_Whitelist'] = 1
 
         # Event information files
-        itn_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_itn_events.csv'
-        irs_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_irs_events.csv'
-        msat_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_msat_events.csv'
-        mda_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_mda_events.csv'
-        stepd_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_stepd_events.csv'
+        if self.itn_fn == None:
+            itn_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_itn_events.csv'
+        else:
+            itn_event_file = self.itn_fn
+
+        if self.irs_fn == None:
+            irs_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_irs_events.csv'
+        else:
+            irs_event_file = self.irs_fn
+
+        if self.msat_fn == None:
+            msat_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_msat_events.csv'
+        else:
+            msat_event_file = self.msat_fn
+
+        if self.mda_fn == None:
+            mda_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_mda_events.csv'
+        else:
+            mda_event_file = self.mda_fn
+
+        if self.stepd_fn == None:
+            stepd_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_stepd_events.csv'
+        else:
+            stepd_event_file = self.stepd_fn
 
         # Import event info
         itn_events = pd.read_csv(itn_event_file)
@@ -615,10 +650,12 @@ class COMPS_Experiment:
             SetupParser.init()
             cg = ClimateGenerator(self.demo_fp_full,
                                   self.exp_base + 'Logs/climate_wo.json',
-                                  self.exp_base + 'Climate/')
-            cg.set_climate_start_year(str(int(self.start_year)))
-            cl_num_years = np.min([2015 - self.start_year, self.sim_length_years]) #fixme not sure if this is still correct.
-            cg.set_climate_num_years(str(int(cl_num_years)))
+                                  self.exp_base + 'Climate/',
+                                  start_year = self.start_year,
+                                  num_years = self.sim_length_years)
+            # cg.set_climate_start_year(str(int(self.start_year)))
+            # cl_num_years = np.min([2015 - self.start_year, self.sim_length_years])
+            # cg.set_climate_num_years(str(int(cl_num_years)))
             cg.generate_climate_files()
 
 
@@ -643,7 +680,7 @@ class COMPS_Experiment:
             modlists.append(new_modlist)
 
         if migration_sweep:
-            new_modlist = [ModFn(DTKConfigBuilder.set_param, 'x_Local_Migration', x) for x in [0.1, 1]]
+            new_modlist = [ModFn(DTKConfigBuilder.set_param, 'x_Local_Migration', x) for x in [0.5,1,2,5]]
             modlists.append(new_modlist)
 
         if vector_migration_sweep:
@@ -660,6 +697,10 @@ class COMPS_Experiment:
                 ModFn(self.implement_interventions, True, True, True, True, True)
             ]
             modlists.append(new_modlist)
+        else:
+            new_modlist = [ModFn(self.implement_interventions, True, True, True, True, True)]
+            modlists.append(new_modlist)
+
 
 
         # if intervention_sweep:

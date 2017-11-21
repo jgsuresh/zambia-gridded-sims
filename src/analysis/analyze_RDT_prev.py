@@ -28,7 +28,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         # return sim_metadata['x_Local_Migration']==0.1
         # return parser.sim_data['Run_Number'] == 0
         # return True
-        return (sim_metadata['IRS'] and sim_metadata['ITNs'] and sim_metadata['MDA'] and sim_metadata['MSAT'] and sim_metadata['StepD'] and sim_metadata['Healthseek'])
+        return (sim_metadata['IRS'] and sim_metadata['ITNs'] and sim_metadata['MDA'] and sim_metadata['MSAT'] and sim_metadata['StepD'])# and sim_metadata['Healthseek'])
 
     def apply(self, parser):
         pop_data = parser.raw_data[self.filenames[0]]
@@ -137,7 +137,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
 
 
         # Plot Chiyabi prevalence data:
-        if False:
+        if True:
             # Overplot Chiyabi RDT prevalence data:
             use_fulldate = True
 
@@ -208,10 +208,10 @@ class RDTPrevAnalyzer(BaseAnalyzer):
             # for date in msat_events['fulldate']: plt.axvline(convert_to_day(date, start_date, date_format=date_format), ls='dashed', color='C2') #,label='MSAT Events')
             # for date in mda_events['fulldate']: plt.axvline(convert_to_day(date, start_date, date_format=date_format), ls='dashed', color='C3') #,label='MDA Events')
 
-            for date in itn_events['fulldate']: plt.axvline(foo(date), ls='dashed', color='C0') #,label='ITN Events')
-            for date in irs_events['fulldate']: plt.axvline(foo(date), ls='dashed', color='C1') #,label='IRS Events')
-            for date in msat_events['fulldate']:plt.axvline(foo(date), ls='dashed', color='C2') #,label='MSAT Events')
-            for date in mda_events['fulldate']: plt.axvline(foo(date), ls='dashed', color='C3') #,label='MDA Events')
+            for date in itn_events['fulldate']: plt.axvline(foo(date), ls='dashed', color='blue') #,label='ITN Events')
+            for date in irs_events['fulldate']: plt.axvline(foo(date), ls='dashed', color='green') #,label='IRS Events')
+            for date in msat_events['fulldate']:plt.axvline(foo(date), ls='dashed', color='red') #,label='MSAT Events')
+            for date in mda_events['fulldate']: plt.axvline(foo(date), ls='dashed', color='purple') #,label='MDA Events')
 
 
             # colors:
@@ -243,7 +243,9 @@ if __name__=="__main__":
 
     am = AnalyzeManager()
 
-    am.add_experiment(retrieve_experiment("c4f143ce-d60c-e711-9400-f0921c16849c"))
+    # am.add_experiment(retrieve_experiment("5abf9fee-abcd-e711-9414-f0921c16b9e5")) #uniform migr sweep
+    # am.add_experiment(retrieve_experiment("ce4b7d34-b0cd-e711-9414-f0921c16b9e5")) #nonuniform migr sweep
+    am.add_experiment(retrieve_experiment("524fb5e2-b1cd-e711-9414-f0921c16b9e5")) #uniform migr sweep with different run numbers
 
     am.add_analyzer(RDTPrevAnalyzer())
     am.analyze()
