@@ -5,11 +5,13 @@ import numpy as np
 
 
 def get_catch_grid(catch_name):
-    grid_df = pd.read_csv("../../data/gridded_pop/raw/gridLookup.csv")
+    base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
+    grid_df = pd.read_csv(base + "data/gridded_pop/raw/grid_lookup.csv")
     if catch_name == 'all':
         catch_df = grid_df
     else:
-        catch_df = grid_df[grid_df['catch.y']==catch_name]
+        print "catch_name = ",catch_name
+        catch_df = grid_df[grid_df['catchment']==catch_name]
     catch_df = catch_df.reset_index()
     return catch_df
 
@@ -20,13 +22,13 @@ def get_latlong_lists_grid(catch_df):
         min_nonzero_dx = np.min(dx[dx > 0])
         return min_nonzero_dx
 
-    dx = find_min_nonzero_diff(np.array(catch_df['mid.x']))
-    dy = find_min_nonzero_diff(np.array(catch_df['mid.y']))
+    dx = find_min_nonzero_diff(np.array(catch_df['mid_x']))
+    dy = find_min_nonzero_diff(np.array(catch_df['mid_y']))
 
-    x_min = np.array(catch_df['mid.x']) - dx/2.
-    x_max = np.array(catch_df['mid.x']) + dx/2.
-    y_min = np.array(catch_df['mid.y']) - dy/2.
-    y_max = np.array(catch_df['mid.y']) + dy/2.
+    x_min = np.array(catch_df['mid_x']) - dx/2.
+    x_max = np.array(catch_df['mid_x']) + dx/2.
+    y_min = np.array(catch_df['mid_y']) - dy/2.
+    y_max = np.array(catch_df['mid_y']) + dy/2.
     return [x_min, x_max, y_min, y_max]
 
 def find_max_pix_pop(survey_df, lat_bnds, long_bnds):
@@ -46,8 +48,8 @@ def find_max_pix_pop(survey_df, lat_bnds, long_bnds):
 def save_in_old_format(catch_df,outname):
     # Rename other columns to match previous format:
     catch_df = catch_df.drop('index',axis=1)
-    catch_df = catch_df.drop('catch.y',axis=1)
-    catch_df = catch_df.rename(columns={'loc.id':'node_label','mid.x': 'lon', 'mid.y': 'lat'})
+    catch_df = catch_df.drop('catchment',axis=1)
+    catch_df = catch_df.rename(columns={'grid_cell':'node_label','mid_x': 'lon', 'mid_y': 'lat'})
 
     catch_df.to_csv(outname)
     return catch_df
@@ -55,7 +57,8 @@ def save_in_old_format(catch_df,outname):
 
 # Loop over each grid cell, and find max pop over all rounds:
 def compute_max_pop_catch_cells(catch_name):
-    survey_df = pd.read_csv("../../data/raw/masterDatasetAllRounds2012-2016.csv")
+    base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
+    survey_df = pd.read_csv(base + "data/raw/masterDatasetAllRounds2012-2016.csv")
 
     catch_df = get_catch_grid(catch_name)
     long_min,long_max,lat_min,lat_max = get_latlong_lists_grid(catch_df)
@@ -70,15 +73,23 @@ def compute_max_pop_catch_cells(catch_name):
 
     catch_df['pop'] = pd.Series(max_pop,index=catch_df.index)
 
-    outname = "../../data/gridded_pop/cleaned/{}_max_pop.csv".format(catch_name.lower())
+    outname = base + "data/gridded_pop/cleaned/{}_max_pop.csv".format(catch_name.lower())
     catch_df = save_in_old_format(catch_df,outname)
     return catch_df
 
+def gen_pop_csv_files_for_milen_catchments():
+    # milen_catch_list = ['chisanga','sinamalima','chiyabi','sinafala','munyumbwe','chipepo','chipepo siavonga','lukonde',
+    #                     'chabbobboma','bbondo','luumbo','nyanga chaamwe']
+    milen_catch_list = ['chisanga','sinamalima','chiyabi','sinafala','munyumbwe','chipepo','chipepo siavonga',
+                        'chabbobboma','bbondo','luumbo','nyanga chaamwe']
 
 
+    for catch in milen_catch_list:
+        compute_max_pop_catch_cells(catch)
 
 
-# if __name__=="main":
+if __name__== "__main__":
+    gen_pop_csv_files_for_milen_catchments()
 # cdf = compute_max_pop_catch_cells("all")
 # cdf = compute_max_pop_catch_cells("Mapatizya")
 # cdf = compute_max_pop_catch_cells("Munyumbwe")
