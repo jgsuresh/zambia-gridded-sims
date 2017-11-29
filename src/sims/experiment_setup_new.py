@@ -23,6 +23,7 @@ from malaria.interventions.malaria_drug_campaigns import add_drug_campaign
 from malaria.reports.MalariaReport import add_summary_report
 
 from relative_time import *
+from gridded_sim_general import *
 from grid_ids_to_nodes import generate_lookup
 from gen_migr_json import gen_gravity_links_json, save_link_rates_to_txt
 
@@ -36,6 +37,7 @@ class COMPS_Experiment:
                  catch='all',
                  grid_pop_csv_file=None,
                  imm_1node_fp=None,
+                 larval_params_mode='uniform',
                  migration_on=True,
                  gravity_migr_params=None,
                  rcd_people_num=5,
@@ -55,6 +57,7 @@ class COMPS_Experiment:
         self.catch = catch
         self.grid_pop_csv_file = grid_pop_csv_file
         self.imm_1node_fp = imm_1node_fp
+        self.larval_params_mode = larval_params_mode
 
         self.migration_on = migration_on
         self.gravity_migr_params = gravity_migr_params
@@ -272,8 +275,13 @@ class COMPS_Experiment:
         # Get grid cell to node ID lookup table:
         nodeid_lookup,pop_lookup = generate_lookup(self.demo_fp_full)
 
+        # Restrict to catchment of interest
+        catch_cells = find_catchment_cells(self.catch)
+        healthseek_events = healthseek_events[np.in1d(healthseek_events['grid_cell'],catch_cells)]
+        healthseek_events.reset_index(inplace=True)
+
         for hs in range(len(healthseek_events)):
-            node_list = [nodeid_lookup[healthseek_events['grid.cell'][hs]]]
+            node_list = [nodeid_lookup[healthseek_events['grid_cell'][hs]]]
 
             add_health_seeking(self.cb,
                                start_day=float(healthseek_events['simday'][hs]),
@@ -337,11 +345,18 @@ class COMPS_Experiment:
             self.cb.update_params({'Migration_Model': 'NO_MIGRATION'})  #'NO_MIGRATION' is actually default for MALARIA_SIM, but might as well make sure it's off
 
     def gen_demo_file(self,input_csv,larval_params=None):
-        dg = DemographicsGenerator.from_file(self.cb, input_csv)
+        dg = DemographicsGenerator.from_file(self.cb, input_csv, catch=self.catch)
         demo_dict = dg.generate_demographics()
 
         # Add larval habitat parameters to demographics file:
-        demo_dict = self.apply_pop_scale_larval_habitats(demo_dict,larval_params=larval_params)
+        if self.larval_params_mode == "uniform":
+            demo_dict = self.add_larval_habitats_to_demo(demo_dict, nodeset='all',larval_params=larval_params)
+        elif self.larval_params_mode == "milen":
+            # Get grid cell to node ID lookup table:
+            from grid_ids_to_nodes import generate_lookup
+            nodeid_lookup, pop_lookup = generate_lookup(self.demo_fp_full)
+
+            demo_dict = self.add_larval_habitats_to_demo(demo_dict, larval_params=larval_params)
 
         if larval_params:
             temp_h = larval_params['temp_h']
@@ -357,22 +372,10 @@ class COMPS_Experiment:
 
     #################################################################################################
     # LARVAL PARAMETER-RELATED FUNCTIONS:
-    def apply_pop_scale_larval_habitats(self,demo_dict, larval_params=None):
-        # scale parameters of multiple nodes in a spatial simulation
-        for node_item in demo_dict['Nodes']:
-            node_label = node_item['NodeAttributes']['FacilityName']
+    def add_larval_habitats_to_demo(self, demo_dict, nodeset='all', larval_params=None):
+        # Add larval habitat parameters (some of which scale with population) to demographics file
 
-            if larval_params:
-                const_h = larval_params['const_h']
-                temp_h = larval_params['temp_h']
-                water_h = larval_params['water_h']
-                linear_h = larval_params['linear_h']
-            else:
-                const_h = 1.
-                temp_h = 122.
-                water_h = 1.
-                linear_h = 97.
-
+        def add_larval_habitat_to_node(node_item, const_h,temp_h,water_h,linear_h):
             calib_single_node_pop = 1000  # for Zambia
 
             # This is now done in the demographics generator itself:
@@ -392,6 +395,56 @@ class COMPS_Experiment:
                 "WATER_VEGETATION": water_multiplier,
                 "LINEAR_SPLINE": linear_multiplier
             }
+
+
+        if self.larval_params_mode=='milen':
+            # get grid cells from pop csv file:
+            # for those grid cells, get corresponding arab/funest params
+            # loop over nodes [order will correspond, by construction, to pop csv ordering]
+            # give each node the corresponding larval params
+
+            # Load pop csv file to get grid cell numbers:
+            pop_df = pd.read_csv(self.grid_pop_csv_file)
+            grid_cells = np.array(pop_df['node_label'])
+
+            # From those grid cells, and the Milen-clusters they correspond to, get best-fit larval habitat parameters
+            from milen_larval_params import find_milen_larval_param_fit_for_grid_cells
+            arab_params,funest_params = find_milen_larval_param_fit_for_grid_cells(grid_cells)
+
+            # Loop over nodes in demographics file (which will, by construction, correspond to the grid pop csv ordering)
+            i = 0
+            for node_item in demo_dict['Nodes']:
+                # if larval_params:
+                #     const_h = larval_params['const_h']
+                #     temp_h = larval_params['temp_h']
+                #     water_h = larval_params['water_h']
+                #     linear_h = larval_params['linear_h']
+                # else:
+                const_h = 1.
+                temp_h = arab_params[i]
+                water_h = 1.
+                linear_h = funest_params[i]
+
+                add_larval_habitat_to_node(node_item,const_h,temp_h,water_h,linear_h)
+
+                i += 1
+
+        elif self.larval_params_mode=='uniform':
+            for node_item in demo_dict['Nodes']:
+
+                if larval_params:
+                    const_h = larval_params['const_h']
+                    temp_h = larval_params['temp_h']
+                    water_h = larval_params['water_h']
+                    linear_h = larval_params['linear_h']
+                else:
+                    const_h = 1.
+                    temp_h = 122.
+                    water_h = 1.
+                    linear_h = 97.
+
+                add_larval_habitat_to_node(node_item,const_h,temp_h,water_h,linear_h)
+
         return demo_dict
 
     def larval_param_sweeper(self,cb,temp_h,linear_h):
@@ -545,6 +598,19 @@ class COMPS_Experiment:
         mda_events['simday'] = [convert_to_day(x, start_date, date_format) for x in mda_events.fulldate]
         stepd_events['simday'] = [convert_to_day(x, start_date, date_format) for x in stepd_events.fulldate]
 
+        # Restrict to catchment of interest
+        catch_cells = find_catchment_cells(self.catch)
+        itn_events = itn_events[np.in1d(itn_events['grid_cell'], catch_cells)]
+        irs_events = irs_events[np.in1d(irs_events['grid_cell'], catch_cells)]
+        msat_events = msat_events[np.in1d(msat_events['grid_cell'], catch_cells)]
+        mda_events = mda_events[np.in1d(mda_events['grid_cell'], catch_cells)]
+        stepd_events = stepd_events[np.in1d(stepd_events['grid_cell'], catch_cells)]
+
+        itn_events.reset_index(inplace=True)
+        irs_events.reset_index(inplace=True)
+        msat_events.reset_index(inplace=True)
+        mda_events.reset_index(inplace=True)
+        stepd_events.reset_index(inplace=True)
 
         # Get grid cell to node ID lookup table:
         from grid_ids_to_nodes import generate_lookup
@@ -563,9 +629,9 @@ class COMPS_Experiment:
                                    seasonal_dep={'min_cov': float(itn_events['min_season_cov'][itn]), 'max_day': 60},
                                    discard={'halflife1': 260, 'halflife2': 2106,
                                             'fraction1': float(itn_events['fast_fraction'][itn])},
-                                   nodeIDs=[nodeid_lookup[itn_events['grid.cell'][itn]]])
+                                   nodeIDs=[nodeid_lookup[itn_events['grid_cell'][itn]]])
                 # Add birth nets
-                if itn < (len(itn_events)-1) and (itn_events['grid.cell'][itn+1] == itn_events['grid.cell'][itn]):
+                if itn < (len(itn_events)-1) and (itn_events['grid_cell'][itn+1] == itn_events['grid_cell'][itn]):
                     birth_duration = float(itn_events['simday'][itn + 1] - itn_events['simday'][itn] - 1)
                 else:
                     birth_duration = -1
@@ -585,14 +651,14 @@ class COMPS_Experiment:
                                    discard={'halflife1': 260, 'halflife2': 2106,
                                             'fraction1': float(itn_events['fast_fraction'][itn])},
                                    duration=birth_duration,
-                                   nodeIDs=[nodeid_lookup[itn_events['grid.cell'][itn]]])
+                                   nodeIDs=[nodeid_lookup[itn_events['grid_cell'][itn]]])
 
         if include_irs:
             for irs in range(len(irs_events)):
                 add_IRS(cb, start=float(irs_events['simday'][irs]),
                         coverage_by_ages=[{'coverage': float(irs_events['cov_all'][irs])}],
                         initial_killing=float(irs_events['killing'][irs]), duration=float(irs_events['duration'][irs]),
-                        nodeIDs=[nodeid_lookup[irs_events['grid.cell'][irs]]])
+                        nodeIDs=[nodeid_lookup[irs_events['grid_cell'][irs]]])
 
 
 
@@ -603,7 +669,7 @@ class COMPS_Experiment:
                                       start_days=[float(msat_events['simday'][msat])],
                                       coverage=msat_events['cov_all'][msat], repetitions=1, interval=60,
                                       dosing='SingleDose',
-                                      nodes=[nodeid_lookup[msat_events['grid.cell'][msat]]])
+                                      nodes=[nodeid_lookup[msat_events['grid_cell'][msat]]])
 
         if include_mda:
             for mda in range(len(mda_events)):
@@ -611,18 +677,18 @@ class COMPS_Experiment:
                                       start_days=[float(mda_events['simday'][mda])],
                                       coverage=float(mda_events['cov_all'][mda]), repetitions=1, interval=60,
                                       dosing='SingleDose',
-                                      nodes=[nodeid_lookup[mda_events['grid.cell'][mda]]])
+                                      nodes=[nodeid_lookup[mda_events['grid_cell'][mda]]])
 
         if include_stepd:
             for sd in range(len(stepd_events)):
-                cov = np.min([1.,float(self.rcd_people_num) / float(pop_lookup[stepd_events['grid.cell'][sd]])])
+                cov = np.min([1.,float(self.rcd_people_num) / float(pop_lookup[stepd_events['grid_cell'][sd]])])
                 add_drug_campaign(cb, campaign_type='rfMDA', drug_code='AL',
                                   start_days=[float(stepd_events['simday'][sd])],
                                   # coverage=float(stepd_events['coverage'][sd]),
                                   # coverage=float(self.rcd_people_num)/float(self.pop_start),
                                   coverage=cov,
                                   interval=float(stepd_events['interval'][sd]),
-                                  nodes=[nodeid_lookup[itn_events['grid.cell'][sd]]])
+                                  nodes=[nodeid_lookup[itn_events['grid_cell'][sd]]])
 
         return {"ITNs": include_itn,
                 "IRS": include_irs,
@@ -631,7 +697,7 @@ class COMPS_Experiment:
                 "StepD": include_stepd}
 
     def file_setup(self,generate_immunity_file=True,generate_demographics_file=True,generate_climate_files=True,generate_migration_files=True):
-        self.multinode_setup()
+        # self.multinode_setup()
 
         if generate_demographics_file:
             print "Generating demographics file..."
@@ -651,11 +717,10 @@ class COMPS_Experiment:
             cg = ClimateGenerator(self.demo_fp_full,
                                   self.exp_base + 'Logs/climate_wo.json',
                                   self.exp_base + 'Climate/',
-                                  start_year = self.start_year,
-                                  num_years = self.sim_length_years)
-            # cg.set_climate_start_year(str(int(self.start_year)))
-            # cl_num_years = np.min([2015 - self.start_year, self.sim_length_years])
-            # cg.set_climate_num_years(str(int(cl_num_years)))
+                                  start_year = str(self.start_year),
+                                  num_years = str(np.min([2016 - self.start_year, self.sim_length_years]))
+                                  )
+
             cg.generate_climate_files()
 
 

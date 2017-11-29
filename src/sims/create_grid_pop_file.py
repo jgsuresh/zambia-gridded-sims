@@ -66,7 +66,7 @@ def compute_max_pop_catch_cells(catch_name):
     n_pix = len(long_min)
     max_pop = np.zeros(n_pix)
     for i in np.arange(n_pix):
-        print "On pixel {} of {}...".format(i+1,n_pix)
+        # print "On pixel {} of {}...".format(i+1,n_pix)
         lat_bnds = [lat_min[i],lat_max[i]]
         long_bnds = [long_min[i],long_max[i]]
         max_pop[i] = find_max_pix_pop(survey_df,lat_bnds,long_bnds)
@@ -89,9 +89,5 @@ def gen_pop_csv_files_for_milen_catchments():
 
 
 if __name__== "__main__":
-    gen_pop_csv_files_for_milen_catchments()
-# cdf = compute_max_pop_catch_cells("all")
-# cdf = compute_max_pop_catch_cells("Mapatizya")
-# cdf = compute_max_pop_catch_cells("Munyumbwe")
-
-
+    compute_max_pop_catch_cells("all")
+    # gen_pop_csv_files_for_milen_catchments()
