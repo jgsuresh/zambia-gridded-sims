@@ -26,6 +26,7 @@ from relative_time import *
 from gridded_sim_general import *
 from grid_ids_to_nodes import generate_lookup
 from gen_migr_json import gen_gravity_links_json, save_link_rates_to_txt
+from gridded_sim_general import *
 
 
 
@@ -38,6 +39,7 @@ class COMPS_Experiment:
                  grid_pop_csv_file=None,
                  imm_1node_fp=None,
                  larval_params_mode='uniform',
+                 immunity_mode='uniform',
                  migration_on=True,
                  gravity_migr_params=None,
                  rcd_people_num=5,
@@ -58,6 +60,7 @@ class COMPS_Experiment:
         self.grid_pop_csv_file = grid_pop_csv_file
         self.imm_1node_fp = imm_1node_fp
         self.larval_params_mode = larval_params_mode
+        self.immunity_mode = immunity_mode
 
         self.migration_on = migration_on
         self.gravity_migr_params = gravity_migr_params
@@ -185,7 +188,7 @@ class COMPS_Experiment:
         intervene_events_list = ["Bednet_Got_New_One","Bednet_Using","Bednet_Discarded"]
         migration_events_list = ["Immigrating", "Emigrating"]
 
-        full_events_list = intervene_events_list #fixme migration events too verbose.
+        full_events_list = intervene_events_list # migration events too verbose
 
         self.cb.update_params({
             "Report_Event_Recorder": 1,
@@ -276,7 +279,7 @@ class COMPS_Experiment:
         nodeid_lookup,pop_lookup = generate_lookup(self.demo_fp_full)
 
         # Restrict to catchment of interest
-        catch_cells = find_catchment_cells(self.catch)
+        catch_cells = find_cells_for_this_catchment(self.catch)
         healthseek_events = healthseek_events[np.in1d(healthseek_events['grid_cell'],catch_cells)]
         healthseek_events.reset_index(inplace=True)
 
@@ -339,7 +342,8 @@ class COMPS_Experiment:
                                     'Enable_Local_Migration':1,
                                     'Migration_Pattern': 'SINGLE_ROUND_TRIPS', # human migration
                                     'Local_Migration_Roundtrip_Duration': 2, # mean of exponential days-at-destination distribution
-                                    'Local_Migration_Roundtrip_Probability': 0.95 # fraction that return
+                                    'Local_Migration_Roundtrip_Probability': 0.95, # fraction that return
+                                    'x_Local_Migration': 4 # amplitude of migration
             })
         elif not self.migration_on:
             self.cb.update_params({'Migration_Model': 'NO_MIGRATION'})  #'NO_MIGRATION' is actually default for MALARIA_SIM, but might as well make sure it's off
@@ -349,14 +353,7 @@ class COMPS_Experiment:
         demo_dict = dg.generate_demographics()
 
         # Add larval habitat parameters to demographics file:
-        if self.larval_params_mode == "uniform":
-            demo_dict = self.add_larval_habitats_to_demo(demo_dict, nodeset='all',larval_params=larval_params)
-        elif self.larval_params_mode == "milen":
-            # Get grid cell to node ID lookup table:
-            from grid_ids_to_nodes import generate_lookup
-            nodeid_lookup, pop_lookup = generate_lookup(self.demo_fp_full)
-
-            demo_dict = self.add_larval_habitats_to_demo(demo_dict, larval_params=larval_params)
+        demo_dict = self.add_larval_habitats_to_demo(demo_dict, larval_params=larval_params)
 
         if larval_params:
             temp_h = larval_params['temp_h']
@@ -404,11 +401,11 @@ class COMPS_Experiment:
             # give each node the corresponding larval params
 
             # Load pop csv file to get grid cell numbers:
-            pop_df = pd.read_csv(self.grid_pop_csv_file)
-            grid_cells = np.array(pop_df['node_label'])
+            # pop_df = pd.read_csv(self.grid_pop_csv_file)
+            # grid_cells = np.array(pop_df['node_label'])
+            grid_cells = find_cells_for_this_catchment(self.catch)
 
             # From those grid cells, and the Milen-clusters they correspond to, get best-fit larval habitat parameters
-            from milen_larval_params import find_milen_larval_param_fit_for_grid_cells
             arab_params,funest_params = find_milen_larval_param_fit_for_grid_cells(grid_cells)
 
             # Loop over nodes in demographics file (which will, by construction, correspond to the grid pop csv ordering)
@@ -512,9 +509,66 @@ class COMPS_Experiment:
         return {"vec_migr": vector_migration_on}
 
     #################################################################################################
+    def gen_immunity_file_from_milen_clusters(self):
+        # Inputs:
+        #   --demographics file with Caitlin-grid cell IDs as the node labels
+        #   --CSV which maps from Caitlin-grid cell IDs to Milen-cluster IDs
+        #   --CSV which maps from Milen-cluster IDs to climate category (e.g. Sinamalima, Gwembe, etc.)
+        #   --Larval habitat parameters for same Milen-cluster IDs
+        #   --Place to find Milen's immunity files (so we can use the one that's the closest match for the given cluster)
+
+        # Outputs:
+        #   --multi-node immunity file where each node's immunity is set to the best-fit approximation by Milen's calibration
+
+        def generate_immun_dict_from_demo_file(cell_ids, node_ids):
+            n_nodes = len(cell_ids)
+            immun_fn_list = closest_milen_immunity_overlay_filenames_for_grid_cells(cell_ids)
+
+            d = {}
+            d["Nodes"] = []
+            d["Defaults"] = {}
+            d["Metadata"] = {}
+            d["Metadata"]["Author"] = "Josh Suresh"
+            d["Metadata"]["IdReference"] = "Gridded world grump30arcsec"
+            d["Metadata"]["NodeCount"] = n_nodes
+
+            for i in range(n_nodes):
+                immun_fn = immun_fn_list[i]
+                f = open(immun_fn, 'r')
+                imm_dict = json.load(f)
+                f.close()
+
+                # node = {}
+                # node["NodeAttributes"] = imm_dict['Defaults'].copy()
+                node = imm_dict['Defaults'].copy()
+                node["NodeID"] = node_ids[i]
+                d["Nodes"].append(node)
+
+            return d
+
+
+        # Open demographics file
+        with open(self.demo_fp_full, 'r') as f:
+            demo_dict = json.load(f)
+
+        # Get NodeID and grid cell (encoded as FacilityName)
+        node_ids = []
+        grid_cell_ids = []
+        for node in demo_dict['Nodes']:
+            node_ids.append(node['NodeID'])
+            grid_cell_ids.append(int(node['NodeAttributes']['FacilityName']))
+
+        # Get filenames of immunity file which correspond to best-fit of larval params and climate category for this grid cell:
+        imm_dict = generate_immun_dict_from_demo_file(grid_cell_ids, node_ids)
+
+        # Dump as new json file
+        with open(self.immun_fp_full, 'w') as f:
+            json.dump(imm_dict, f, indent=4)
+
+
     def get_immunity_file_from_single_node(self):
         # Inputs:
-        #   --demographics file (e.g. generated in example_josh)
+        #   --demographics file
         #   --single-node immunity file (e.g. "Sinamalima_1_node_immune_init_p1_33_p2_117.json")
 
         # Outputs:
@@ -599,7 +653,7 @@ class COMPS_Experiment:
         stepd_events['simday'] = [convert_to_day(x, start_date, date_format) for x in stepd_events.fulldate]
 
         # Restrict to catchment of interest
-        catch_cells = find_catchment_cells(self.catch)
+        catch_cells = find_cells_for_this_catchment(self.catch)
         itn_events = itn_events[np.in1d(itn_events['grid_cell'], catch_cells)]
         irs_events = irs_events[np.in1d(irs_events['grid_cell'], catch_cells)]
         msat_events = msat_events[np.in1d(msat_events['grid_cell'], catch_cells)]
@@ -705,7 +759,10 @@ class COMPS_Experiment:
 
         if generate_immunity_file:
             print "Generating immunity files..."
-            self.get_immunity_file_from_single_node()
+            if self.immunity_mode == "uniform":
+                self.get_immunity_file_from_single_node()
+            elif self.immunity_mode == "milen":
+                self.gen_immunity_file_from_milen_clusters()
 
         if generate_migration_files:
             print "Generating migration files..."
