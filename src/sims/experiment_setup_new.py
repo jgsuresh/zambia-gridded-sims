@@ -524,6 +524,11 @@ class COMPS_Experiment:
             n_nodes = len(cell_ids)
             immun_fn_list = closest_milen_immunity_overlay_filenames_for_grid_cells(cell_ids)
 
+            # print cell_ids
+            # print immun_fn_list
+            # for i in range(len(cell_ids)):
+            #     print "Cell id {} has immun fn {}".format(cell_ids[i],immun_fn_list[i])
+
             d = {}
             d["Nodes"] = []
             d["Defaults"] = {}
@@ -715,8 +720,6 @@ class COMPS_Experiment:
                         nodeIDs=[nodeid_lookup[irs_events['grid_cell'][irs]]])
 
 
-
-
         if include_msat:
             for msat in range(len(msat_events)):
                     add_drug_campaign(cb, campaign_type='MSAT', drug_code='AL',
@@ -742,7 +745,7 @@ class COMPS_Experiment:
                                   # coverage=float(self.rcd_people_num)/float(self.pop_start),
                                   coverage=cov,
                                   interval=float(stepd_events['interval'][sd]),
-                                  nodes=[nodeid_lookup[itn_events['grid_cell'][sd]]])
+                                  nodes=[nodeid_lookup[stepd_events['grid_cell'][sd]]])
 
         return {"ITNs": include_itn,
                 "IRS": include_irs,

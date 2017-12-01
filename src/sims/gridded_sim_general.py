@@ -97,7 +97,7 @@ def closest_milen_immunity_overlay_filename(arab_param,funest_param,climate_cate
     nearest_funest_param = find_nearest_from_precomputed(funest_param, precomputed_funest_params)
 
     # Return filename for these parameters:
-    fn = base + "data/immunity/{}_1_node/{}_1_node_immune_init_p1_{}_p2_{}.json".format(climate_category,climate_category,nearest_arab_param,nearest_funest_param)
+    fn = base + "data/immunity/{}_1_node/{}_1_node_immune_init_p1_{}_p2_{}.json".format(climate_category,climate_category,nearest_funest_param,nearest_arab_param)
     return fn
 
 def get_arab_funest_precomputed_values_for_climate_category(climate_category, base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
