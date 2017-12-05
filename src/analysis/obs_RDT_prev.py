@@ -37,58 +37,71 @@ def get_grid_cells_for_catch(grid_lookup,catch):
     cells = grid_lookup['grid_cell'][grid_lookup['catchment']==catch]
     return np.array(cells)
 
-def get_catch_prev(grid_prev,grid_lookup,catch):
-    cells = get_grid_cells_for_catch(grid_lookup,catch)
-
-    in_catch = np.in1d(grid_prev['grid_cell'],cells)
+def get_catch_prev(full_df,catch,weighting='population'):
+    catch_cells = full_df['grid_cell'][full_df['catchment']==catch]
+    in_catch = np.in1d(grid_prev['grid_cell'],np.array(catch_cells))
 
     catch_prev = {}
     for rd in range(1,11):
-        in_rd = grid_prev['round'] == rd
+        in_rd = full_df['round'] == rd
         full_cut = np.logical_and(in_catch,in_rd)
         if np.sum(full_cut) > 0:
-            in_catch_this_rd = grid_prev[np.logical_and(in_catch,in_rd)]
+            in_catch_this_rd = full_df[np.logical_and(in_catch,in_rd)]
 
             prev = np.array(in_catch_this_rd['prev'])
-            pop = np.array(in_catch_this_rd['N'])
+            pop_this_rd = np.array(in_catch_this_rd['N'])
+            maxpop_ever = np.array(in_catch_this_rd['pop'])
 
             # Exclude nan pixels:
             good_pix = np.logical_not(np.isnan(prev))
             prev = prev[good_pix]
-            pop = pop[good_pix]
+            pop_this_rd = pop_this_rd[good_pix]
+            maxpop_ever = maxpop_ever[good_pix]
 
             if np.sum(good_pix) > 0:
 
-                total_prev = np.float(np.sum(prev*pop))/np.float(np.sum(pop))
-                catch_prev[rd] = total_prev
-                if np.isnan(total_prev):
-                    print "nan found"
-                    print prev
-                    print pop
+                if weighting=='population':
+                    total_prev = np.float(np.sum(prev*maxpop_ever))/np.float(np.sum(maxpop_ever))
+                    catch_prev[rd] = total_prev
+
+                elif weighting=='MDA_coverage':
+                    total_prev = np.float(np.sum(prev*pop_this_rd))/np.float(np.sum(pop_this_rd))
+                    catch_prev[rd] = total_prev
 
     return catch_prev
 
-def save_prev_by_catch(grid_prev,grid_lookup):
+def save_prev_by_catch(full_df, weighting='population'):
     # For each catchment, find all grid cells which correspond to this catchment
     catch_list = get_catch_list()
     prev_dict = {}
     for catch in catch_list:
         # Ignore the NAN - pixels which are not in a catchment:
         if type(catch)== str:
-            prev_dict[catch] = get_catch_prev(grid_prev,grid_lookup,catch)
+            prev_dict[catch] = get_catch_prev(full_df,catch,weighting=weighting)
 
     # Turn this into a dataframe, and save it to CSV
     prev_df = pd.DataFrame(prev_dict)
-    prev_df.to_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/catch_prevalence.csv')
 
+    if weighting == 'population':
+        prev_df.to_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_pop_weighted.csv')
+    elif weighting == 'MDA_coverage':
+        prev_df.to_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_coverage_weighted.csv')
 
 if __name__ == "__main__":
     base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
     grid_prev = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv')
     grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_lookup.csv')
 
+    # Merge so each grid cell also knows its own catchment
+    full_df = grid_prev.merge(grid_lookup,how='left',left_on='grid_cell',right_on='grid_cell')
+
+    # Merge again so each grid cell also knows its own maximum population
+    grid_maxpop = pd.read_csv(base + 'data/gridded_pop/cleaned/all_max_pop.csv')
+    full_df = full_df.merge(grid_maxpop,how='left',left_on='grid_cell',right_on='node_label')
+
     # write_new_lookup_with_caps_names(grid_prev)
     # grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/grid_lookup_caps.csv')
 
-    save_prev_by_catch(grid_prev,grid_lookup)
+    save_prev_by_catch(full_df, weighting='population')
+    save_prev_by_catch(full_df, weighting='MDA_coverage')
 
