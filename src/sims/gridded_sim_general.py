@@ -28,10 +28,10 @@ def convert_from_dtk_node_ids_to_grid_cells_using_demo(dtk_node_ids,demo):
     grid_cell_ids = []
     for node in demo_df['Nodes']:
         node_ids.append(node['NodeID'])
-        grid_cell_ids.append(node['FacilityName'])
+        grid_cell_ids.append(node['NodeAttributes']['FacilityName'])
 
-    # node_ids = pd.Series(node_ids)
-    # grid_cell_ids = pd.Series(grid_cell_ids)
+    # Convert grid_cell_ids to array of integers:
+    grid_cell_ids = np.array(grid_cell_ids,dtype=int)
 
     demo_df = pd.DataFrame({
         'node_ids': node_ids,
@@ -57,6 +57,7 @@ def get_lat_long_grid_cells(cell_ids, base='C:/Users/jsuresh/OneDrive - IDMOD/Pr
 
 def get_lat_long_dtk_nodes(dtk_node_ids, demo, base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
     cell_ids = convert_from_dtk_node_ids_to_grid_cells_using_demo(dtk_node_ids,demo)
+    print "cell_ids ",cell_ids
     [lat,lon] = get_lat_long_grid_cells(cell_ids, base=base)
     return [lat,lon]
 
@@ -332,6 +333,8 @@ def scatter_lat_long_on_map(lon,lat,
     if savefig == False:
         plt.show()
     else:
+        print "saving fig to ",savefig
+        plt.tight_layout()
         plt.savefig(savefig)
 
     return ax

@@ -9,7 +9,7 @@ from gridded_sim_general import *
 
 class RDTPrevAnalyzer(BaseAnalyzer):
 
-    filenames = ['output\SpatialReport_Population.bin', 'output\SpatialReport_Prevalence.bin', 'output\SpatialReport_New_Diagnostic_Prevalence.bin']
+    filenames = ['output/SpatialReport_Population.bin', 'output/SpatialReport_Prevalence.bin', 'output/SpatialReport_New_Diagnostic_Prevalence.bin', 'Assets/Demographics/demo.json']
 
     def __init__(self):
         super(RDTPrevAnalyzer, self).__init__()
@@ -31,6 +31,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         pop_data = parser.raw_data[self.filenames[0]]
         prev_data = parser.raw_data[self.filenames[1]]
         RDT_prev_data = parser.raw_data[self.filenames[2]]
+        demo = parser.raw_data[self.filenames[3]]
 
         self.node_ids[parser.sim_id] = pop_data['nodeids']
         self.n_tstep = pop_data['n_tstep']
