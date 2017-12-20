@@ -115,7 +115,14 @@ class RDTPrevAnalyzer(BaseAnalyzer):
             round_dates_mdate.append(day_mdate)
         round_dates_array = np.array(round_dates_mdate)
 
-        plt.scatter(round_dates_array,catch_prev,c='red',s=70,label='Data for {}'.format(catch.capitalize()),zorder=10)
+        if catch in ["chabbobboma","chipepo","gwembe","lukande","nyanga chaamwe"]:
+            plt.scatter(round_dates_array[:-4], catch_prev[:-4], c='red', s=70, label='Data for {}'.format(catch.capitalize()),zorder=10)
+            plt.scatter(round_dates_array[-4:], catch_prev[-4:], c='gray', s=70 ,label='HFCA not in MDA round',zorder=10)
+        elif catch in ["chisanga"]:
+            plt.scatter(np.append(round_dates_array[:3],round_dates_array[5:]), np.append(catch_prev[:3],catch_prev[5:]), c='red', s=70, label='Data for {}'.format(catch.capitalize()),zorder=10)
+            plt.scatter(round_dates_array[3:5], catch_prev[3:5], c='gray', s=70, label='HFCA not in MDA round',zorder=10)
+        else:
+            plt.scatter(round_dates_array, catch_prev, c='red', s=70, label='Data for {}'.format(catch.capitalize()),zorder=10)
 
 
 
@@ -175,16 +182,15 @@ if __name__=="__main__":
 
     am = AnalyzeManager()
 
-    # INCORRECT: switched vector params
-    am.add_experiment(retrieve_experiment("88eeab70-20d6-e711-9414-f0921c16b9e5")) # bbondo
-    # am.add_experiment(retrieve_experiment("27f59955-20d6-e711-9414-f0921c16b9e5"))  # chabbobboma
-    # am.add_experiment(retrieve_experiment("e19c6f79-20d6-e711-9414-f0921c16b9e5")) # chisanga
-    # am.add_experiment(retrieve_experiment("d976668f-20d6-e711-9414-f0921c16b9e5")) # chiyabi
-    # am.add_experiment(retrieve_experiment("1a678e9d-20d6-e711-9414-f0921c16b9e5"))  # luumbo
-    # am.add_experiment(retrieve_experiment("ee9eb7af-20d6-e711-9414-f0921c16b9e5"))  # munyumbwe
-    # am.add_experiment(retrieve_experiment("7eace3c8-20d6-e711-9414-f0921c16b9e5"))  # nyanga chaamwe
-    # am.add_experiment(retrieve_experiment("f7e0ac00-21d6-e711-9414-f0921c16b9e5"))  # sinafala
-    # am.add_experiment(retrieve_experiment("7eace3c8-20d6-e711-9414-f0921c16b9e5"))  # sinamalima
+    # am.add_experiment(retrieve_experiment("43cac760-cbd6-e711-9414-f0921c16b9e5")) # bbondo
+    # am.add_experiment(retrieve_experiment("a31b516a-cbd6-e711-9414-f0921c16b9e5"))  # chabbobboma
+    # am.add_experiment(retrieve_experiment("1ecdf372-cbd6-e711-9414-f0921c16b9e5")) # chisanga
+    # am.add_experiment(retrieve_experiment("957e6159-32d6-e711-9414-f0921c16b9e5")) # chiyabi
+    # am.add_experiment(retrieve_experiment("9669907b-cbd6-e711-9414-f0921c16b9e5"))  # luumbo
+    # am.add_experiment(retrieve_experiment("fbe40809-ccd6-e711-9414-f0921c16b9e5"))  # munyumbwe
+    am.add_experiment(retrieve_experiment("8aadd6a0-cbd6-e711-9414-f0921c16b9e5"))  # nyanga chaamwe
+    # am.add_experiment(retrieve_experiment("d18a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinafala
+    # am.add_experiment(retrieve_experiment("d28a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinamalima
 
 
     am.add_analyzer(RDTPrevAnalyzer())

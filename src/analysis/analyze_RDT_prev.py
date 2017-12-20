@@ -245,7 +245,10 @@ if __name__=="__main__":
 
     # am.add_experiment(retrieve_experiment("5abf9fee-abcd-e711-9414-f0921c16b9e5")) #uniform migr sweep
     # am.add_experiment(retrieve_experiment("ce4b7d34-b0cd-e711-9414-f0921c16b9e5")) #nonuniform migr sweep
-    am.add_experiment(retrieve_experiment("524fb5e2-b1cd-e711-9414-f0921c16b9e5")) #uniform migr sweep with different run numbers
+    # am.add_experiment(retrieve_experiment("524fb5e2-b1cd-e711-9414-f0921c16b9e5")) #uniform migr sweep with different run numbers
 
+    # am.add_experiment(retrieve_experiment("a164aff6-68d5-e711-9414-f0921c16b9e5"))
+    # am.add_experiment(retrieve_experiment("789d2e3f-fdd5-e711-9414-f0921c16b9e5"))
+    am.add_experiment(retrieve_experiment("5d364a69-ffd5-e711-9414-f0921c16b9e5"))
     am.add_analyzer(RDTPrevAnalyzer())
     am.analyze()

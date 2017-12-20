@@ -164,18 +164,6 @@ if __name__=="__main__":
 
     am = AnalyzeManager()
 
-
-    # Corrected vector param immunity, BUT incorrect StepD (only ~1 cell got stepd)
-    # am.add_experiment(retrieve_experiment("5539241e-32d6-e711-9414-f0921c16b9e5")) # bbondo
-    # am.add_experiment(retrieve_experiment("15f5282b-32d6-e711-9414-f0921c16b9e5"))  # chabbobboma
-    # am.add_experiment(retrieve_experiment("80169448-32d6-e711-9414-f0921c16b9e5")) # chisanga
-    # am.add_experiment(retrieve_experiment("957e6159-32d6-e711-9414-f0921c16b9e5")) # chiyabi
-    # am.add_experiment(retrieve_experiment("7aa7e969-32d6-e711-9414-f0921c16b9e5"))  # luumbo
-    # am.add_experiment(retrieve_experiment("695f9d80-32d6-e711-9414-f0921c16b9e5"))  # munyumbwe
-    # am.add_experiment(retrieve_experiment("1ea21996-32d6-e711-9414-f0921c16b9e5"))  # nyanga chaamwe
-    # am.add_experiment(retrieve_experiment("eff77db9-32d6-e711-9414-f0921c16b9e5"))  # sinafala
-    # am.add_experiment(retrieve_experiment("451fe5d4-32d6-e711-9414-f0921c16b9e5"))  # sinamalima
-
     # Corrected stepd
     # am.add_experiment(retrieve_experiment("43cac760-cbd6-e711-9414-f0921c16b9e5")) # bbondo
     # am.add_experiment(retrieve_experiment("a31b516a-cbd6-e711-9414-f0921c16b9e5"))  # chabbobboma
@@ -185,7 +173,18 @@ if __name__=="__main__":
     # am.add_experiment(retrieve_experiment("fbe40809-ccd6-e711-9414-f0921c16b9e5"))  # munyumbwe
     # am.add_experiment(retrieve_experiment("8aadd6a0-cbd6-e711-9414-f0921c16b9e5"))  # nyanga chaamwe
     # am.add_experiment(retrieve_experiment("d18a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinafala
-    am.add_experiment(retrieve_experiment("d28a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinamalima
+    # am.add_experiment(retrieve_experiment("d28a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinamalima
+
+    # Old MBGSR
+    # am.add_experiment(retrieve_experiment("7f188957-2fe1-e711-9414-f0921c16b9e5")) # bbondo
+    # am.add_experiment(retrieve_experiment("f60d69eb-2fe1-e711-9414-f0921c16b9e5"))  # chabbobboma
+    # am.add_experiment(retrieve_experiment("7aa30068-2fe1-e711-9414-f0921c16b9e5")) # chisanga
+    # am.add_experiment(retrieve_experiment("d57bccae-25e1-e711-9414-f0921c16b9e5")) # chiyabi
+    # am.add_experiment(retrieve_experiment("5d5cff6d-2fe1-e711-9414-f0921c16b9e5"))  # luumbo
+    # am.add_experiment(retrieve_experiment("cf37cd7b-2fe1-e711-9414-f0921c16b9e5"))  # munyumbwe
+    # am.add_experiment(retrieve_experiment("94aa85fb-2fe1-e711-9414-f0921c16b9e5"))  # nyanga chaamwe
+    # am.add_experiment(retrieve_experiment("f5c0fb13-30e1-e711-9414-f0921c16b9e5"))  # sinafala
+    # am.add_experiment(retrieve_experiment("33b92b39-30e1-e711-9414-f0921c16b9e5"))  # sinamalima
 
     am.add_analyzer(RDTPrevAnalyzer())
     am.analyze()

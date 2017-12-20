@@ -35,7 +35,7 @@ try:
 except:
     print "Incorrect or missing inputs "
     run_mode = 1
-    priority = "Highest"
+    priority = "AboveNormal"
     coreset = "emod_abcd"
     num_cores = 12
     milen_catch_list = ['bbondo', 'chabbobboma', 'chisanga', 'chiyabi', 'luumbo', 'munyumbwe', 'nyanga chaamwe',
@@ -47,7 +47,7 @@ except:
 
 if '_' in catch:
     catch = catch.replace('_',' ')
-exp_name = '{}_full'.format(catch)
+exp_name = '{}_full_old_MBGSR'.format(catch)
 
 gravity_migr_params = np.array([7.50395776e-06, 9.65648371e-01, 9.65648371e-01, -1.10305489e+00])
 

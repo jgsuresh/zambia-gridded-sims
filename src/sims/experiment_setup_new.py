@@ -187,6 +187,7 @@ class COMPS_Experiment:
         # Event recording:
         intervene_events_list = ["Bednet_Got_New_One","Bednet_Using","Bednet_Discarded"]
         migration_events_list = ["Immigrating", "Emigrating"]
+        # case_events_list = ["NewClinicalCase",
 
         full_events_list = intervene_events_list # migration events too verbose
 
