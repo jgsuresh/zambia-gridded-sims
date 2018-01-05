@@ -28,11 +28,11 @@ class RDTPrevAnalyzer(BaseAnalyzer):
 
     def apply(self, parser):
         exp_name = parser.experiment.exp_name
-        self.catch[parser.sim_id] = exp_name.split('_')[0] # Assumes the experiment name is "CATCHNAME_other"
+        self.catch = exp_name.split('_')[0] # Assumes the experiment name is "CATCHNAME_other"
 
         pop_data = parser.raw_data[self.filenames[0]]
         RDT_prev_data = parser.raw_data[self.filenames[1]]
-        demo = parser.raw_data[self.filenames[2]]
+        self.demo = parser.raw_data[self.filenames[2]]
 
         self.node_ids = pop_data['nodeids']
         self.n_tstep = pop_data['n_tstep']
@@ -51,7 +51,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
             self.RDT_prev_by_node[node_id] = np.zeros(self.n_tstep)
 
             for i in range(self.n_tstep):
-                self.RDT_prev_by_node[node_id][i] = RDT_prev_data[]
+                self.RDT_prev_by_node[node_id][i] = RDT_prev_data['data'][i][j]
                 # self.RDT_prev_aggr[parser.sim_id][i] = np.sum(pop_data['data'][i] * RDT_prev_data['data'][i]) / np.sum(pop_data['data'][i])
 
     def finalize(self):
@@ -66,6 +66,10 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         start_date = "2007-01-01"  # Day 1 of simulation
         date_format = "%Y-%m-%d"
 
+        # Get cells for this catchment
+        catch_cell_ids = find_cells_for_this_catchment(self.catch)
+
+        # Get actual dates for the simulation days:
         foo = mdates.strpdate2num(date_format)
 
         daynum = np.arange(self.n_tstep)
@@ -78,109 +82,54 @@ class RDTPrevAnalyzer(BaseAnalyzer):
 
         print daydates_mdates
 
-        plt.figure(figsize=(12,5))
-        ax = plt.subplot(111)
-
-        lbl_flag = 0
-        for sim_id, data in self.RDT_prev_aggr.items():
-            if lbl_flag == 0:
-                lbl = "Simulations"
-                lbl_flag = 1
-            else:
-                lbl = None
-            plt.plot_date(daydates_mdates, self.RDT_prev_aggr[sim_id],fmt='-',color='black',label=lbl,lw=1.2,zorder=10)
-
-        catch = self.catch.itervalues().next()
-
-        catch_cell_ids = find_cells_for_this_catchment(catch)
-
-        ###############################################################################################################
-
-        ###############################################################################################################
-
-        # Look up catchment prevalence data from precomputed file:
-        df = pd.read_csv(self.base + "data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_coverage_weighted.csv")
-        catch_prev_cov_weighted = np.array(df[catch])
-        df = pd.read_csv(self.base + "data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_pop_weighted.csv")
-        catch_prev_pop_weighted = np.array(df[catch])
 
 
-        # chiyabi_round_dates = ["2012-07-01","2012-09-30","2012-11-30","2013-07-01","2013-08-31","2013-10-31","2014-12-31","2015-03-01","2015-09-30","2016-02-29"]
-        global_round_dates = ["2012-06-18", "2012-08-29", "2012-11-03", "2013-06-09", "2013-08-11", "2013-10-08",
-                               "2014-12-17", "2015-02-17", "2015-09-20", "2016-02-16"]
-        # global_round_dates is computed from gridded_sim_general.round_date_sanity_check()
+        plt.figure(figsize=(12, 5))
 
-        # Compute round dates that are appropriate for the given catchment
+        # Get lookup files ready:
+        mc_lookup_df = pd.read_csv(self.base + "data/milen_clusters/cluster_lookup.csv") #fixme
+        prev_lookup_df = pd.read_csv() #fixme
 
-        # rd_day_sim = np.zeros(10)
-        round_dates = list(global_round_dates)
-        for rd in range(1,11):
-            rd_day_sim = compute_round_date(rd,catch_cell_ids)
+        # Loop over every Milen-cluster that is associated with this HFCA (from dictionary in gridded_sim_general.py)
+        num_mc = len(HFCA_milen_cluster_lookup[self.catch])
 
-            if rd_day_sim != -1:
-                # Then computing round date failed.  Default to global round date in this case:
-                round_dates[rd-1] = convert_to_date_365(rd_day_sim, start_date)
-            # rd_day_sim[rd-1] =
+        for mi in range(num_mc):
+            mc = HFCA_milen_cluster_lookup[self.catch][mi]
 
+            ax = plt.subplot(num_mc / 2, 2, mi + 1)
+            ax.set_title(mc)
 
+            # For each Milen-cluster, find the cells which correspond to this Milen-cluster (from one of Caitlin's lookup files)
+            cells_this_mc = mc_lookup_df['grid'][] #fixme
 
-        round_dates_mdate = []
-        for i in range(10):
-            day_mdate = foo(round_dates[i])
-            round_dates_mdate.append(day_mdate)
-        round_dates_array = np.array(round_dates_mdate)
+            # Convert these cells into node IDs:
+            node_ids = convert_from_grid_cells_to_dtk_node_ids_using_demo(cells_this_mc, self.demo)
 
-        if catch in ["chabbobboma","chipepo","gwembe","lukande","nyanga chaamwe"]:
-            plt.scatter(round_dates_array[:-4], catch_prev_cov_weighted[:-4], c='pink',edgecolors='black', s=70, alpha=0.9,label='{}: Coverage-weighted RDT+'.format(catch.capitalize()),zorder=20)
-            plt.scatter(round_dates_array[-4:], catch_prev_cov_weighted[-4:], c='gray',edgecolors='black', s=70,zorder=20) # ,label='HFCA not in MDA round'
-        elif catch in ["chisanga"]:
-            plt.scatter(np.append(round_dates_array[:3],round_dates_array[5:]), np.append(catch_prev_cov_weighted[:3],catch_prev_cov_weighted[5:]), c='pink',edgecolors='black', s=70, alpha=0.9,label='{}: Coverage-weighted RDT+'.format(catch.capitalize()),zorder=20)
-            plt.scatter(round_dates_array[3:5], catch_prev_cov_weighted[3:5], c='gray',edgecolors='black', s=70,zorder=20) #, label='HFCA not in MDA round'
-        else:
-            plt.scatter(round_dates_array, catch_prev_cov_weighted, c='pink',edgecolors='black', s=70, alpha=0.9,label='{}: Coverage-weighted RDT+'.format(catch.capitalize()),zorder=20)
+            # For each of these nodes, plot:
+            #   - the simulated RDT prevalence of that particular node
+            #   - the observed RDT prevalence points (from one of Caitlin's lookup files), sized according to the population of the node.
+            for ni in range(len(node_ids)):
+                node_id = node_ids[ni]
+                grid_cell = cells_this_mc[ni]
+                pop = self.pop_init[ni] #fixme
 
-        if catch in ["chabbobboma","chipepo","gwembe","lukande","nyanga chaamwe"]:
-            plt.scatter(round_dates_array[:-4], catch_prev_pop_weighted[:-4], c='teal',edgecolors='black', marker='s',s=70, alpha=0.8,label='{}: Pop-weighted RDT+'.format(catch.capitalize()),zorder=20)
-            plt.scatter(round_dates_array[-4:], catch_prev_pop_weighted[-4:], c='gray',edgecolors='black', marker='s',s=70,zorder=20) # ,label='HFCA not in MDA round'
-        elif catch in ["chisanga"]:
-            plt.scatter(np.append(round_dates_array[:3],round_dates_array[5:]), np.append(catch_prev_pop_weighted[:3],catch_prev_pop_weighted[5:]), c='teal',edgecolors='black', marker='s',s=70, alpha=0.8,label='{}: Pop-weighted RDT+'.format(catch.capitalize()),zorder=20)
-            plt.scatter(round_dates_array[3:5], catch_prev_pop_weighted[3:5], c='gray',edgecolors='black', marker='s',s=70,zorder=20) # , label='HFCA not in MDA round'
-        else:
-            plt.scatter(round_dates_array, catch_prev_pop_weighted, c='teal',edgecolors='black', marker='s', s=70, alpha=0.8,label='{}: Pop-weighted RDT+'.format(catch.capitalize()),zorder=20)
+                # Plot simulated RDT prevalence for this node:
+                ax.plot_date(daydates_mdates,self.RDT_prev_by_node[node_id]
+                             ,c='C{}'.format(8%ni))
 
-        # For each round time-point, also plot the corresponding MDA-coverage-weighted (not full pop-weighted) RDT prevalence from the simulation:
+                # Plot observed RDT prevalence for corresponding grid cell:
+                this_node = prev_lookup_df['grid'] == grid_cell
+                ax.plot_date(prev_lookup_df['date'][this_node],prev_lookup_df['prev'][this_node],linestyle='none',
+                             c = 'C{}'.format(8 % ni),s=np.sqrt(pop))
 
-        # Get the observational data for how many people were observed in that round, in each pixel.
-        # Divide this by the "max pop ever seen in this pixel" to get the "MDA coverage" for that pixel.
-        # Aggregate an MDA-coverage-weighted RDT prevalence from the corresponding pixels in the simulation.
-        prev_df = pd.read_csv(self.base + "data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv")
-        max_pop_df = pd.read_csv(self.base + "data/gridded_pop/cleaned/all_max_pop.csv")
-
-        full_df = prev_df.merge(max_pop_df,how='left',left_on='grid_cell',right_on='node_label')
-
-
-        # catch_df = full_df[np.in1d(full_df['grid_cell'],catch_cell_ids)]
-
-        # # Loop over every round
-        # coverage_corrected_prev_sim = np.zeros(10)
-        # for round in range(1,10):
-        #     in_round = catch_df['round'] == round
-        #     temp_df = catch_df[in_round]
-        #
-        #     # For each round, get list of cells, their populations, and their MDA-coverage's
-        #     # Find way to convert from cell ID list to node ID list.
-        #     # Find way to get node ID list from
-
-
-
-
-        plt.legend()
-        # plt.xlim([3000,7000])
-        plt.xlim([foo("2010-01-01"), foo("2019-01-01")])
+            ax.set_xlabel("Date")
+            ax.set_ylabel("RDT Prevalence")
+            ax.legend()
+            ax.set_xlim([foo("2010-01-01"), foo("2019-01-01")])
 
         plt.tight_layout()
-        # plt.show()
-        plt.savefig(self.base + "data/figs/{}_prev.png".format(catch))
+        plt.show()
+        # plt.savefig(self.base + "data/figs/{}_prev_by_mcluster.png".format(catch))
 
 
 if __name__=="__main__":
