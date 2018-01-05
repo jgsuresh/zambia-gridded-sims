@@ -45,10 +45,14 @@ class RDTPrevAnalyzer(BaseAnalyzer):
 
         # Collect aggregated data:
         self.RDT_prev_by_node = {}
-        #np.zeros(self.n_tstep)
-        for i in range(self.n_tstep):
-            self.prev_aggr[parser.sim_id][i] = np.sum(pop_data['data'][i]*prev_data['data'][i])/np.sum(pop_data['data'][i])
-            self.RDT_prev_aggr[parser.sim_id][i] = np.sum(pop_data['data'][i] * RDT_prev_data['data'][i]) / np.sum(pop_data['data'][i])
+
+        for j in range(self.n_nodes):
+            node_id = self.node_ids[j]
+            self.RDT_prev_by_node[node_id] = np.zeros(self.n_tstep)
+
+            for i in range(self.n_tstep):
+                self.RDT_prev_by_node[node_id][i] = RDT_prev_data[]
+                # self.RDT_prev_aggr[parser.sim_id][i] = np.sum(pop_data['data'][i] * RDT_prev_data['data'][i]) / np.sum(pop_data['data'][i])
 
     def finalize(self):
         print ""
