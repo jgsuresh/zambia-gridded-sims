@@ -3,6 +3,7 @@ import numpy as np
 import json
 import matplotlib.pyplot as plt
 
+from relative_time import *
 
 # Place to keep just generally useful functions
 
@@ -501,14 +502,278 @@ def aggregate_events_in_recorder(recorder_df, event_type,
 
 ############################################################################################################
 
-HFCA_additional_CHW_lookup = {
-    "Chabbobboma": ["so Chipepo RHC Siancheka",
-                    "so Chipepo RHC Chilindi",
-                    "so Gulumunyanga Health Post (CHA)",
-                    "so Gulumunyanga HP Hamatuba"],
+# HFCA_additional_CHW_lookup = {
+#     "Chabbobboma": ["so Chipepo RHC Siancheka",
+#                     "so Chipepo RHC Chilindi",
+#                     "so Gulumunyanga Health Post (CHA)",
+#                     "so Gulumunyanga HP Hamatuba"],
+#
+#     "Munyumbwe": ["so Makuyu HP Ganikoongo",
+#                   "so Makuyu HP Katete",
+#                   "so Fumbo  Delivery Point (step 2b)"],
+#
+# }
 
-    "Munyumbwe": ["so Makuyu HP Ganikoongo",
-                  "so Makuyu HP Katete",
-                  "so Fumbo  Delivery Point (step 2b)"],
 
+HFCA_milen_cluster_lookup = {
+    "Bbondo": ["80201_1",
+               "80201_2",
+               "80201_3",
+               "80201_4",
+               "80201_5",
+               "80201_6",
+               "80201_7",
+               "80201_8",
+               "80201_9",
+               "80201_10",
+               "80201_11",
+               "80201_12"],
+    "Chabbobboma": ["80202_1",
+                    "80202_2",
+                    "80202_3",
+                    "80202_4",
+                    "80202_5",
+                    "80202_6",
+                    "80202_7",
+                    "80202_8",
+                    "80202_9",
+                    "80202_10",
+                    "80203_4",
+                    "80203_6",
+                    "80203_7",
+                    "80208_7"],
+    "Chisanga": ["80204_1",
+                 "80204_2",
+                 "80204_3",
+                 "80204_4",
+                 "80204_5",
+                 "80204_6",
+                 "80204_7",
+                 "80204_8",
+                 "80204_9",
+                 "80204_10"],
+    "Chiyabi": ["81102_1",
+                "81102_2",
+                "81102_3",
+                "81102_4",
+                "81102_5",
+                "81102_6",
+                "81102_7",
+                "81102_8",
+                "81102_9"],
+    "Luumbo": ["80202_1",
+               "80208_1",
+               "80208_2",
+               "80208_3",
+               "80208_4",
+               "80208_5",
+               "80208_6",
+               "80208_7",
+               "80208_8",
+               "80208_9",
+               "80208_10",
+               "80210_3"],
+    "Munyumbwe": ["80209_2",
+                  "80209_3",
+                  "80209_4",
+                  "80209_5",
+                  "80209_6",
+                  "80209_7",
+                  "80209_8",
+                  "80209_9",
+                  "80209_10"],
+    "Nyanga Chaamwe": ["80210_1",
+                       "80210_2",
+                       "80210_3",
+                       "80210_4",
+                       "80210_5",
+                       "80210_6",
+                       "80210_7",
+                       "80210_8",
+                       "80210_9",
+                       "80210_10",
+                       "80210_11",
+                       "80210_12"],
+    "Sinafala": ["80204_7",
+                 "80211_1",
+                 "80211_2",
+                 "80211_3",
+                 "80211_4",
+                 "80211_5",
+                 "80211_6",
+                 "80211_7",
+                 "80211_8"],
+    "Sinamalima": ["81111_1",
+                   "81111_2",
+                   "81111_3",
+                   "81111_4",
+                   "81111_5",
+                   "81111_6",
+                   "81111_7",
+                   "81111_8"]
 }
+
+
+
+############################################################################################################
+
+def compute_round_date(round,cell_ids,weight="covpop",start_date="2007-01-01",base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+    # Open Caitlin's file
+    prev_df = pd.read_csv(base + "data/prevalence/2017-12-20/raw/grid_prevalence_with_dates.csv")
+    prev_df = prev_df[prev_df['round']==round]
+
+    df = pd.DataFrame({
+        "cell_ids": cell_ids
+    })
+
+    df = df.merge(prev_df,how='left',left_on="cell_ids",right_on="loc.id")
+    # Drop NANs (which occur when a given cell doesn't appear in this round)
+    df = df.dropna()
+
+    if len(df) == 0:
+        return -1
+    df['sim_day'] = df.apply(lambda x: convert_to_day_365(x['date'],start_date),axis=1)
+
+    # Remove possible outlier dates
+    non_outlier_dates = nonoutlier_mask(df['sim_day'])
+    if np.sum(non_outlier_dates) < 2:
+        return -1
+    else:
+        df = df[non_outlier_dates]
+
+    # Merge in population information, so that we can weight properly.
+    if weight == "covpop":
+        pop_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv")
+        pop_df = pop_df[pop_df["round"]==round]
+
+        df = df.merge(pop_df,how="left",left_on="cell_ids",right_on="grid_cell")
+        weighted_round_date = np.int32((df["N"]*df["sim_day"]).sum()/df["N"].sum())
+
+
+    elif weight == "maxpop":
+        pop_df = pd.read_csv(base + "data/gridded_pop/cleaned/all_max_pop.csv")
+
+        df = df.merge(pop_df, how="left", left_on="cell_ids", right_on="node_label")
+        weighted_round_date = np.int32((df["pop"] * df["sim_day"]).sum() / df["pop"].sum())
+
+    print "Weighted round date: ",convert_to_date_365(weighted_round_date,start_date)
+    return weighted_round_date
+
+def round_date_sanity_check():
+    for rd in range(1,11):
+        compute_round_date(rd,np.arange(10000),weight="covpop")
+        compute_round_date(rd,np.arange(10000),weight="maxpop")
+
+def nonoutlier_mask(data, m=2.):
+    # https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list
+    d = np.abs(data - np.median(data))
+    mdev = np.median(d)
+    s = d / mdev if mdev else 0.
+    return s < m
+
+
+
+############################################################################################################
+
+def add_cell_intervention_timing_rugs_to_plot(ax,cell_ids,start_date="2007-01-01",base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+    import matplotlib.dates as mdates
+    import seaborn as sns
+    sns.set_style("darkgrid")
+
+    # start_date = "2007-01-01"  # Day 1 of simulation
+    date_format = "%Y-%m-%d"
+
+    foo = mdates.strpdate2num(date_format)
+
+
+    # Plot vertical lines for different intervention timepoints:
+    # IRS:
+    irs_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_irs_events.csv")
+    irs_df = irs_df[np.in1d(np.array(irs_df["grid_cell"]), cell_ids)]
+    print "plotting IRS lines"
+    lbl_flag = 0
+    for d in irs_df['fulldate']:
+        if lbl_flag == 0:
+            lbl = "IRS events"
+            lbl_flag = 1
+        else:
+            lbl = None
+        ax.axvline(foo(d), c='C0', ymin=0.8, ymax=1.0, lw=0.5, alpha=0.4, label=lbl, zorder=1)
+    print "done plotting IRS lines"
+
+    # ITN:
+    itn_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_itn_events.csv")
+    itn_df = itn_df[np.in1d(np.array(itn_df["grid_cell"]), cell_ids)]
+    print "plotting itn lines"
+    lbl_flag = 0
+    for d in itn_df['fulldate']:
+        if lbl_flag == 0:
+            lbl = "ITN events"
+            lbl_flag = 1
+        else:
+            lbl = None
+        ax.axvline(foo(d), c='C1', ymin=0.5, ymax=0.7, lw=0.5, alpha=0.4, label=lbl, zorder=1)
+    print "done plotting itn lines"
+
+    # MDA:
+    mda_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_mda_events.csv")
+    mda_df = mda_df[np.in1d(np.array(mda_df["grid_cell"]), cell_ids)]
+    print "plotting mda lines"
+    lbl_flag = 0
+    for d in mda_df['fulldate']:
+        if lbl_flag == 0:
+            lbl = "MDA events"
+            lbl_flag = 1
+        else:
+            lbl = None
+        ax.axvline(foo(d), c='C2', ymin=0, ymax=0.2, lw=0.5, alpha=0.2, label=lbl, zorder=2)
+    print "done plotting mda lines"
+
+    # MSAT:
+    msat_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_msat_events.csv")
+    msat_df = msat_df[np.in1d(np.array(msat_df["grid_cell"]), cell_ids)]
+    print "plotting msat lines"
+    lbl_flag = 0
+    for d in msat_df['fulldate']:
+        if lbl_flag == 0:
+            lbl = "MSAT events"
+            lbl_flag = 1
+        else:
+            lbl = None
+        ax.axvline(foo(d), c='C3', ymin=0, ymax=0.2, lw=0.5, alpha=0.2, label=lbl, zorder=2)
+    print "done plotting msat lines"
+
+    # MSAT:
+    stepd_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_stepd_events.csv")
+    stepd_df = stepd_df[np.in1d(np.array(stepd_df["grid_cell"]), cell_ids)]
+    print "plotting stepd lines"
+    lbl_flag = 0
+    for d in stepd_df['fulldate']:
+        if lbl_flag == 0:
+            lbl = "CHWs added"
+            lbl_flag = 1
+        else:
+            lbl = None
+        ax.axvline(foo(d), c='C4', ymin=0, ymax=1.0, lw=1.0, label=lbl, linestyle='dashed', zorder=2)
+    print "done plotting stepd lines"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
