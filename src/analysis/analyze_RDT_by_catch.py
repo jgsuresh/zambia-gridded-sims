@@ -170,6 +170,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
 
 
 
+        add_cell_intervention_timing_rugs_to_plot(ax,catch_cell_ids)
 
         plt.legend()
         # plt.xlim([3000,7000])
@@ -185,7 +186,23 @@ if __name__=="__main__":
 
     am = AnalyzeManager()
 
-    # Corrected stepd
+    # hand-fudged Milen habitat params
+    # am.add_experiment(retrieve_experiment("4766b178-f5f4-e711-9414-f0921c16b9e5")) #bbondo
+    # am.add_experiment(retrieve_experiment("34213b5c-f8f4-e711-9414-f0921c16b9e5"))  # chabbobboma
+    # am.add_experiment(retrieve_experiment("84d95a7a-faf4-e711-9414-f0921c16b9e5"))  # chisanga
+    # am.add_experiment(retrieve_experiment("c6313998-faf4-e711-9414-f0921c16b9e5")) # chiyabi
+    # am.add_experiment(retrieve_experiment("69c0e4de-faf4-e711-9414-f0921c16b9e5"))  # luumbo
+    # am.add_experiment(retrieve_experiment("4f045b1b-fbf4-e711-9414-f0921c16b9e5"))  # munyumbwe
+    # am.add_experiment(retrieve_experiment("542b05fe-fbf4-e711-9414-f0921c16b9e5"))  # nyanga chaamwe (x0.5)
+    # am.add_experiment(retrieve_experiment("b546a866-04f5-e711-9414-f0921c16b9e5"))  # nyanga chaamwe (x0.25)
+    am.add_experiment(retrieve_experiment("a938d951-06f5-e711-9414-f0921c16b9e5"))  # nyanga chaamwe (x0.15)
+    # am.add_experiment(retrieve_experiment("47bc7d56-fcf4-e711-9414-f0921c16b9e5"))  # sinafala
+    # am.add_experiment(retrieve_experiment("cd2853cf-fcf4-e711-9414-f0921c16b9e5"))  # sinamalima
+
+
+
+
+    # Milen habitat params
     # am.add_experiment(retrieve_experiment("43cac760-cbd6-e711-9414-f0921c16b9e5")) # bbondo
     # am.add_experiment(retrieve_experiment("a31b516a-cbd6-e711-9414-f0921c16b9e5"))  # chabbobboma
     # am.add_experiment(retrieve_experiment("1ecdf372-cbd6-e711-9414-f0921c16b9e5")) # chisanga
@@ -194,7 +211,7 @@ if __name__=="__main__":
     # am.add_experiment(retrieve_experiment("fbe40809-ccd6-e711-9414-f0921c16b9e5"))  # munyumbwe
     # am.add_experiment(retrieve_experiment("8aadd6a0-cbd6-e711-9414-f0921c16b9e5"))  # nyanga chaamwe
     # am.add_experiment(retrieve_experiment("d18a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinafala
-    am.add_experiment(retrieve_experiment("d28a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinamalima
+    # am.add_experiment(retrieve_experiment("d28a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinamalima
 
     # Old MBGSR
     # am.add_experiment(retrieve_experiment("7f188957-2fe1-e711-9414-f0921c16b9e5")) # bbondo

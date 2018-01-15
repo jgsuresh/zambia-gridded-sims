@@ -40,8 +40,10 @@ class RDTPrevAnalyzer(BaseAnalyzer):
 
         # Get initial population of nodes:
         self.pop_init = np.zeros(self.n_nodes)
+        self.pop_init_dict = {}
         for ni in range(self.n_nodes):
             self.pop_init[ni] = pop_data['data'][0][ni]
+            self.pop_init_dict[self.node_ids[ni]] = pop_data['data'][0][ni]
 
         # Collect aggregated data:
         self.RDT_prev_by_node = {}
@@ -52,7 +54,6 @@ class RDTPrevAnalyzer(BaseAnalyzer):
 
             for i in range(self.n_tstep):
                 self.RDT_prev_by_node[node_id][i] = RDT_prev_data['data'][i][j]
-                # self.RDT_prev_aggr[parser.sim_id][i] = np.sum(pop_data['data'][i] * RDT_prev_data['data'][i]) / np.sum(pop_data['data'][i])
 
     def finalize(self):
         print ""
@@ -80,56 +81,96 @@ class RDTPrevAnalyzer(BaseAnalyzer):
             daydates_list.append(hold)
             daydates_mdates = np.append(daydates_mdates,foo(hold))
 
-        print daydates_mdates
 
-
-
-        plt.figure(figsize=(12, 5))
 
         # Get lookup files ready:
-        mc_lookup_df = pd.read_csv(self.base + "data/milen_clusters/cluster_lookup.csv") #fixme
-        prev_lookup_df = pd.read_csv() #fixme
+        mc_lookup_df = pd.read_csv(self.base + "data/milen_clusters/cluster_to_grid_lookup.csv")
+        # prev_lookup_df = pd.read_csv(self.base + "data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv")
+        prev_lookup_df = pd.read_csv(self.base + "data/prevalence/2017-12-20/raw/grid_prevalence_with_dates.csv")
 
         # Loop over every Milen-cluster that is associated with this HFCA (from dictionary in gridded_sim_general.py)
-        num_mc = len(HFCA_milen_cluster_lookup[self.catch])
+        num_mc = len(HFCA_milen_cluster_lookup[self.catch.title()])
+
+        if num_mc < 9:
+            plt.figure(figsize=(12, 12))
+        else:
+            plt.figure(figsize=(20, 12))
 
         for mi in range(num_mc):
-            mc = HFCA_milen_cluster_lookup[self.catch][mi]
-
-            ax = plt.subplot(num_mc / 2, 2, mi + 1)
-            ax.set_title(mc)
+            mc = HFCA_milen_cluster_lookup[self.catch.title()][mi]
 
             # For each Milen-cluster, find the cells which correspond to this Milen-cluster (from one of Caitlin's lookup files)
-            cells_this_mc = mc_lookup_df['grid'][] #fixme
+            mc_cell_ids = find_cells_for_this_milen_cluster(mc)
+            cell_ids = np.intersect1d(catch_cell_ids, mc_cell_ids, assume_unique=True)
 
             # Convert these cells into node IDs:
-            node_ids = convert_from_grid_cells_to_dtk_node_ids_using_demo(cells_this_mc, self.demo)
+            node_ids = convert_from_grid_cells_to_dtk_node_ids_using_demo(cell_ids, self.demo)
+
+            # Sort by population:
+            pops = map(lambda x: self.pop_init_dict[x],list(node_ids))
+            pops = np.array(pops)
+                # np.array(self.pop_init_dict[list(node_ids)])
+            popsort = np.argsort(pops)
+            pops = pops[popsort]
+            cell_ids = cell_ids[popsort]
+            node_ids = node_ids[popsort]
+
+            # only plot above thresh:
+            pop_thresh = 10
+            pop_cut = pops > 10
+            cell_ids = cell_ids[pop_cut]
+            node_ids = node_ids[pop_cut]
 
             # For each of these nodes, plot:
             #   - the simulated RDT prevalence of that particular node
             #   - the observed RDT prevalence points (from one of Caitlin's lookup files), sized according to the population of the node.
+            if num_mc < 9:
+                ax = plt.subplot(num_mc / 2, 2, mi + 1)
+            else:
+                ax = plt.subplot(num_mc / 3, 3, mi + 1)
+            ax.set_title(mc)
+
             for ni in range(len(node_ids)):
                 node_id = node_ids[ni]
-                grid_cell = cells_this_mc[ni]
-                pop = self.pop_init[ni] #fixme
+                cell_id = cell_ids[ni]
+                pop = self.pop_init_dict[node_id]
+
+                plot_color=plt.cm.plasma_r(np.float(ni+1)/np.float(len(node_ids)))
+                print ni
+                print plot_color
 
                 # Plot simulated RDT prevalence for this node:
-                ax.plot_date(daydates_mdates,self.RDT_prev_by_node[node_id]
-                             ,c='C{}'.format(8%ni))
+                ax.plot_date(daydates_mdates,self.RDT_prev_by_node[node_id],
+                             # c='C{}'.format(ni%8),
+                             c=plot_color,
+                             fmt='-',zorder=1,alpha=0.85)
 
                 # Plot observed RDT prevalence for corresponding grid cell:
-                this_node = prev_lookup_df['grid'] == grid_cell
-                ax.plot_date(prev_lookup_df['date'][this_node],prev_lookup_df['prev'][this_node],linestyle='none',
-                             c = 'C{}'.format(8 % ni),s=np.sqrt(pop))
+                this_node = prev_lookup_df['loc.id'] == cell_id
+                this_node_round_dates = list(prev_lookup_df['date'][this_node])
+
+                round_dates_mdate = []
+                for di in range(len(this_node_round_dates)):
+                    day_mdate = foo(this_node_round_dates[di])
+                    round_dates_mdate.append(day_mdate)
+                round_dates_array = np.array(round_dates_mdate)
+
+                ax.scatter(round_dates_array,prev_lookup_df['rdt'][this_node],
+                           # c='C{}'.format(ni%7),
+                           c=plot_color,
+                           s=pop**(2./3.),
+                           edgecolors='black',zorder=10,label=int(pop))
+                # ax.plot_date(prev_lookup_df['date'][this_node],prev_lookup_df['rdt'][this_node],linestyle='none',
+                #              c='C{}'.format(8 % (ni + 1)),s=np.sqrt(pop))
 
             ax.set_xlabel("Date")
             ax.set_ylabel("RDT Prevalence")
-            ax.legend()
-            ax.set_xlim([foo("2010-01-01"), foo("2019-01-01")])
+            # ax.legend(fontsize=6)
+            ax.set_xlim([foo("2012-01-01"), foo("2017-01-01")])
 
         plt.tight_layout()
-        plt.show()
-        # plt.savefig(self.base + "data/figs/{}_prev_by_mcluster.png".format(catch))
+        # plt.show()
+        plt.savefig(self.base + "data/figs/{}_prev_by_mcluster.png".format(self.catch))
 
 
 if __name__=="__main__":
