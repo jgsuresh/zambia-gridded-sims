@@ -48,7 +48,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
 
 
     def finalize(self):
-        print ""
+        print("")
 
     def plot(self):
         import matplotlib.pyplot as plt

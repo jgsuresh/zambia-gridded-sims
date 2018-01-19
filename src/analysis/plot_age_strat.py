@@ -60,13 +60,13 @@ class AgeStratificationAnalyzer(BaseAnalyzer):
         self.tot_pop[exp_id] = np.zeros(0)
         for ri in range(len(self.report_times)):
             pop_this_timestep = np.array(raw_pop_data[ri])
-            print "Total population at report time {} = {}".format(ri,np.sum(pop_this_timestep))
+            print("Total population at report time {} = {}".format(ri,np.sum(pop_this_timestep)))
             self.tot_pop[exp_id] = np.append(self.tot_pop[exp_id],np.sum(pop_this_timestep))
 
 
 
     def finalize(self):
-        print ""
+        print("")
 
     def plot(self):
         import matplotlib.pyplot as plt

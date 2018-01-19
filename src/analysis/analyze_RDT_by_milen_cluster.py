@@ -56,7 +56,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
                 self.RDT_prev_by_node[node_id][i] = RDT_prev_data['data'][i][j]
 
     def finalize(self):
-        print ""
+        print("")
 
     def plot(self):
         import matplotlib.pyplot as plt
@@ -136,8 +136,8 @@ class RDTPrevAnalyzer(BaseAnalyzer):
                 pop = self.pop_init_dict[node_id]
 
                 plot_color=plt.cm.plasma_r(np.float(ni+1)/np.float(len(node_ids)))
-                print ni
-                print plot_color
+                print(ni)
+                print(plot_color)
 
                 # Plot simulated RDT prevalence for this node:
                 ax.plot_date(daydates_mdates,self.RDT_prev_by_node[node_id],

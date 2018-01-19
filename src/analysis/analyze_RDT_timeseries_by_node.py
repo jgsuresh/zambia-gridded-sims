@@ -50,7 +50,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
                 self.pop_by_node[parser.sim_id][j][i] = pop_timestep_data[j]
 
     def finalize(self):
-        print ""
+        print("")
 
     def plot(self):
         import matplotlib.pyplot as plt
@@ -72,7 +72,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
             daydates_list.append(hold)
             daydates_mdates = np.append(daydates_mdates,foo(hold))
 
-        print daydates_mdates
+        print(daydates_mdates)
 
         maxpop_ever = 0
         for sim_id, data in self.RDT_prev_by_node.items():

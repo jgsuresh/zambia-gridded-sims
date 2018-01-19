@@ -62,7 +62,7 @@ class MigrationAnalyzer(BaseAnalyzer):
 
     def finalize(self):
         # print self.my_data
-        print ""
+        print("")
 
     def plot(self):
         import matplotlib.pyplot as plt

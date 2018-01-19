@@ -12,12 +12,7 @@ from datetime import date
 
 class RDTPrevAnalyzer(BaseAnalyzer):
 
-    # filenames = ['output\SpatialReport_Population.bin',
-    #              'output\SpatialReport_Prevalence.bin',
-    #              'output\SpatialReport_New_Diagnostic_Prevalence.bin',
-    #              'Assets\Demographics\demo.json']
-    filenames = ['output/SpatialReport_Population.bin', 'output/SpatialReport_Prevalence.bin',
-                 'output/SpatialReport_New_Diagnostic_Prevalence.bin', 'Assets/Demographics/demo.json']
+    filenames = ['output/SpatialReport_Population.bin', 'output/SpatialReport_New_Diagnostic_Prevalence.bin', 'Assets/Demographics/demo.json']
 
     def __init__(self):
         super(RDTPrevAnalyzer, self).__init__()
@@ -27,23 +22,22 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         self.RDT_prev_by_node = {}
         self.pop_by_node = {}
         self.catch = {}
-        self.demo_file = {}
+        self.demo_dict = None
         self.node_ids = {}
 
+        self.base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
+
     def filter(self, sim_metadata):
+        # return True
         return sim_metadata['Run_Number'] == 0
 
     def apply(self, parser):
         exp_name = parser.experiment.exp_name
         self.catch = exp_name.split('_')[0] # Assumes the experiment name is "CATCHNAME_full"
 
-        base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
-        self.demo_file = base + "data/COMPS_experiments/{}_full/Demographics/demo.json".format(self.catch)
-
         pop_data = parser.raw_data[self.filenames[0]]
-        prev_data = parser.raw_data[self.filenames[1]]
-        RDT_prev_data = parser.raw_data[self.filenames[2]]
-        # demo_data = parser.raw_data[self.filenames[3]]
+        RDT_prev_data = parser.raw_data[self.filenames[1]]
+        self.demo_dict = parser.raw_data[self.filenames[2]]
 
         self.node_ids = pop_data['nodeids']
         self.n_tstep = pop_data['n_tstep']
@@ -65,17 +59,28 @@ class RDTPrevAnalyzer(BaseAnalyzer):
                 self.pop_by_node[j][i] = pop_timestep_data[j]
 
     def finalize(self):
-        print ""
+        pass
+
 
     def plot(self):
         import matplotlib.pyplot as plt
         from matplotlib import cm
         import matplotlib.dates as mdates
+        from matplotlib import ticker
         import seaborn as sns
         sns.set_style("darkgrid")
 
+        def convert_date_str_to_date_obj(date_str):
+            # Break into pieces:
+            date_list = date_str.split("-")
+            for i in range(3):
+                date_list[i] = int(date_list[i])
+            return date(date_list[0],date_list[1],date_list[2])
+
         start_date = "2007-01-01"  # Day 1 of simulation
         date_format = "%Y-%m-%d"
+        cmap = plt.get_cmap("RdBu",11)
+        mode = "ratio" #"diff"
 
         foo = mdates.strpdate2num(date_format)
 
@@ -89,26 +94,21 @@ class RDTPrevAnalyzer(BaseAnalyzer):
             daydates_mdates = np.append(daydates_mdates,foo(hold))
 
         # Look up catchment prevalence data from precomputed file:
-        base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
-        df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/cleaned/catch_prevalence.csv")
-        catch_prev = np.array(df[self.catch])
+        obs_df = pd.read_csv(self.base + "data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv")
 
+        #fixme Get round dates from prevalence data.
         round_dates = ["2012-07-01","2012-09-30","2012-11-30","2013-07-01","2013-08-31","2013-10-31","2014-12-31","2015-03-01","2015-09-30","2016-02-29"]
 
-        def convert_date_str_to_date_obj(date_str):
-            # Break into pieces:
-            date_list = date_str.split("-")
-            for i in range(3):
-                date_list[i] = int(date_list[i])
-            return date(date_list[0],date_list[1],date_list[2])
 
-        # def get_all_node_RDT_prev_for_given_daynum(daynum):
-        #
-        #     self.RDT_prev_by_node
+        # Get get grid cell IDs, and lat/long for each DTK node:
+        node_grid_cell_ids = convert_from_dtk_node_ids_to_grid_cells_using_demo(self.node_ids, self.demo_dict)
+        [node_lat, node_lon] = get_lat_long_dtk_nodes(self.node_ids, self.demo_dict)
 
-        [node_lat, node_lon] = get_lat_long_dtk_nodes(self.node_ids, self.demo_file)
-
-        cmap = plt.get_cmap('Blues', 5)
+        # sim_df = pd.DataFrame({
+        #     "node_lat": node_lat,
+        #     "node_lon": node_lon,
+        #     "sim_grid_cell_ids": node_grid_cell_ids
+        # })
 
         # Define custom colorbar limits to match already-generated figures:
         clim_dict = {
@@ -123,12 +123,14 @@ class RDTPrevAnalyzer(BaseAnalyzer):
             'sinamalima': 0.7
         }
 
-
+        # Loop over all rounds:
         rd = 1
         for rd_date in round_dates:
+            print("Working on round {}".format(rd))
+
+            # Get the simulation-day-number for this particular round
             sd = convert_date_str_to_date_obj(start_date)
             ed = convert_date_str_to_date_obj(rd_date)
-
             day_num = (ed-sd).days
 
             # Find the node data for this date:
@@ -139,21 +141,74 @@ class RDTPrevAnalyzer(BaseAnalyzer):
                 pop[j] = self.pop_by_node[j][day_num]
                 prev[j] = self.RDT_prev_by_node[j][day_num]
 
-            S = scale_pt_size(pop, size_min=50, size_max=500)
-            C = prev
-            # clim = cbar_scale(C)
-            clim = [0.,clim_dict[self.catch]]
-            fname = base + "data/figs/RDT_maps/sims/{}_rd_{}.png".format(self.catch, rd)
+            # Create dataframe of simulation data in prep for merging with observational data:
+            data_df = pd.DataFrame({
+                "grid_cell_id": node_grid_cell_ids,
+                "sim_pop": pop,
+                "sim_prev": prev,
+            })
 
-            scatter_lat_long_on_map(node_lon,
-                                    node_lat,
-                                    C=C,
-                                    S=S,
-                                    clim=clim,
-                                    cbar_label='Prevalence',
-                                    cmap=cmap,
-                                    title='SIM: {} round {}'.format(self.catch.capitalize(), rd),
-                                    savefig=fname)
+            # Get the observational data for this round:
+            obs_round_df = obs_df[obs_df['round']==rd]
+
+            # Merge the two:
+            data_df = data_df.merge(obs_round_df,how='left',left_on='grid_cell_id',right_on='grid_cell')
+            data_df = data_df.rename(columns={'prev': 'obs_prev', 'N': 'obs_pop'})
+            data_df['obs_pop'] = data_df['obs_pop'].fillna(0)
+
+
+            # Plot:
+            plt.figure(figsize=(10, 10))
+            ax = plt.subplot(111)
+
+            ax = return_satellite_map_on_plt_axes(ax,
+                                                  [np.min(node_lon), np.max(node_lon)],
+                                                  [np.min(node_lat), np.max(node_lat)])
+
+            S = scale_pt_size(pop, size_min=50, size_max=500)
+
+            # Plot bad points, all in gray:
+            missing_from_obs = data_df['obs_pop'] < (1./5.) * data_df['sim_pop']
+            if np.sum(missing_from_obs) > 0:
+                ax.scatter(node_lon[missing_from_obs],
+                           node_lat[missing_from_obs],
+                           s=S[missing_from_obs],
+                           c='gray',
+                           marker='s',
+                           edgecolor='black',
+                           label='Obs data missing or unreliable')
+
+            # Plot good points, colored by difference in prevalence:
+            in_obs = np.logical_not(missing_from_obs)
+            if np.sum(in_obs) > 0:
+                if mode == "diff":
+                    prev_diff = (data_df[in_obs]['sim_prev']-data_df[in_obs]['obs_prev'])#/(data_df[in_obs]['obs_prev'])
+
+
+                scale = max([np.max(prev),np.abs(np.min(prev))])
+
+                sc = ax.scatter(node_lon[in_obs],
+                                node_lat[in_obs],
+                                s=S[in_obs],
+                                c=prev_diff,
+                                cmap=cmap,
+                                vmin=-clim_dict[self.catch],
+                                vmax=clim_dict[self.catch],
+                                marker='s',
+                                edgecolor='black',
+                                # vmin=clim[0], vmax=clim[1],
+                                )
+
+                cb=plt.colorbar(sc)
+                tick_locator = ticker.MaxNLocator(nbins=10)
+                cb.locator = tick_locator
+                cb.update_ticks()
+                cb.set_label('(Sim Prev) - (Measured Prev)')
+
+            ax.set_title('SIM: {} round {}'.format(self.catch.capitalize(), rd))
+            # plt.show()
+            plt.savefig(self.base + "data/figs/RDT_diff_maps/{}_rd_{}_diff.png".format(self.catch, rd))
+
             plt.close('all')
             rd += 1
 
@@ -179,7 +234,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         # plt.legend()
         # # plt.xlim([3000,7000])
         # plt.xlim([foo("2010-01-01"), foo("2019-01-01")])
-        # # plt.show()
+        # plt.show()
         # plt.tight_layout()
         # plt.savefig(base + "data/figs/{}_prev_node.png".format(catch))
 
@@ -194,10 +249,10 @@ if __name__=="__main__":
     # am.add_experiment(retrieve_experiment("1ecdf372-cbd6-e711-9414-f0921c16b9e5")) # chisanga
     # am.add_experiment(retrieve_experiment("957e6159-32d6-e711-9414-f0921c16b9e5")) # chiyabi
     # am.add_experiment(retrieve_experiment("9669907b-cbd6-e711-9414-f0921c16b9e5"))  # luumbo
-    am.add_experiment(retrieve_experiment("fbe40809-ccd6-e711-9414-f0921c16b9e5"))  # munyumbwe
+    # am.add_experiment(retrieve_experiment("fbe40809-ccd6-e711-9414-f0921c16b9e5"))  # munyumbwe
     # am.add_experiment(retrieve_experiment("8aadd6a0-cbd6-e711-9414-f0921c16b9e5"))  # nyanga chaamwe
     # am.add_experiment(retrieve_experiment("d18a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinafala
-    # am.add_experiment(retrieve_experiment("d28a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinamalima
+    am.add_experiment(retrieve_experiment("d28a9aa8-cbd6-e711-9414-f0921c16b9e5"))  # sinamalima
 
 
     am.add_analyzer(RDTPrevAnalyzer())

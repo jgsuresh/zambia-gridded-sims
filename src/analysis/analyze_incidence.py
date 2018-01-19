@@ -77,7 +77,7 @@ class RDTIncidenceAnalyzer(BaseAnalyzer):
                                                                 start_date="2007-01-01")
 
     def finalize(self):
-        print ""
+        print("")
 
     def plot(self):
 
@@ -85,7 +85,7 @@ class RDTIncidenceAnalyzer(BaseAnalyzer):
             pass
 
         def load_DHIS_HF_and_CHW_data(base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'): #merge_clinical_and_rdt_for_HF=False):
-            print "Loading DHIS data..."
+            print("Loading DHIS data...")
             obs_df = pd.read_csv(base + "data/incidence/Oct2017_AllSouthern.csv",
                                  usecols=['dataelement', 'period', 'orgunit', 'value'])
             keep_data_elements = ['Clinical malaria cases', 'Passive Number Positive', 'RDT positive cases']
@@ -98,7 +98,7 @@ class RDTIncidenceAnalyzer(BaseAnalyzer):
             #     in_catch = obs_df.apply(lambda x: ("so NyangaC".format(self.catch.capitalize()) in x['orgunit'],axis=1)
             catch_df = obs_df[in_catch]
             # fixme Does not take into account the possibility of name variations (e.g. Lukonde vs Lukande).  Could accomplish this with an "acceptable name variations" dictionary
-            print "Done loading DHIS data."
+            print("Done loading DHIS data.")
 
             in_HF = catch_df.apply(lambda x: "W" in x['period'], axis=1)
             HF_df = catch_df[in_HF]
@@ -303,7 +303,7 @@ class RDTIncidenceAnalyzer(BaseAnalyzer):
 
                 this_CHW = CHW_df.apply(lambda x: chw_name in x["orgunit"], axis=1)
                 if np.sum(this_CHW) == 0:
-                    print "ZERO instances found of ",chw_name
+                    print("ZERO instances found of ",chw_name)
                 this_CHW_df = CHW_df[this_CHW]
 
                 # Check how many CHWs there are that fit this name:
@@ -321,14 +321,14 @@ class RDTIncidenceAnalyzer(BaseAnalyzer):
             [month_counter, month_num, year_num, months_df] = generate_month_index()
 
             chw_list = get_list_of_CHWs()
-            print "chw_list: ",chw_list
+            print("chw_list: ",chw_list)
             num_chw = len(chw_list)
             plt.figure(figsize=(10,10))
 
             chw_counter = 1
             for chw_name in chw_list:
                 # chw_name = "so Chabbobboma RHC Syambabala"
-                print "Working on CHW {}...".format(chw_name)
+                print("Working on CHW {}...".format(chw_name))
 
                 # Merge in observations:
                 # print CHW_df

@@ -52,7 +52,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
             self.RDT_prev_aggr[parser.sim_id][i] = np.sum(pop_data['data'][i] * RDT_prev_data['data'][i]) / np.sum(pop_data['data'][i])
 
     def finalize(self):
-        print ""
+        print("")
 
     def plot(self):
         import matplotlib.pyplot as plt
@@ -73,7 +73,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
             daydates_list.append(hold)
             daydates_mdates = np.append(daydates_mdates,foo(hold))
 
-        print daydates_mdates
+        # print(daydates_mdates)
 
         plt.figure(figsize=(12,5))
         ax = plt.subplot(111)

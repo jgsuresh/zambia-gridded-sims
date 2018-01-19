@@ -21,7 +21,7 @@ for catch in catch_list:
 
     catch_df = catch_df.merge(df,how='left',left_on='grid_cell_ids',right_on='grid_cell')
     # catch_df['cluster_id'] = catch_df['cluster_id'].fillna(0)
-    print catch_df
+    print(catch_df)
     cluster_names = list(set(catch_df['cluster_id']))
     cluster_names.sort()
 
