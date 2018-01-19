@@ -141,7 +141,7 @@ def milen_cluster_larval_param_fit(cluster_id, base='C:/Users/jsuresh/OneDrive -
     return return_dict
 
 
-def find_milen_larval_param_fit_for_grid_cells(cell_ids):
+def find_milen_larval_param_fit_for_grid_cells(cell_ids, fudge_milen_habitats=False):
     # Return the best-fit larval parameters for a set of grid cell IDs
     cluster_ids = find_milen_cluster_for_grid_cells(cell_ids)
 
@@ -155,12 +155,102 @@ def find_milen_larval_param_fit_for_grid_cells(cell_ids):
         arab_params[i] = param_dict['arabiensis_sc']
         funest_params[i] = param_dict['funestus_sc']
 
+        if fudge_milen_habitats:
+            [arab_params[i],funest_params[i]]= fudge_milen_habitats_by_hand(cl_id,
+                                                                             arab_params[i].astype(np.float),
+                                                                             funest_params[i].astype(np.float))
+
         i += 1
 
     arab_params = arab_params.astype(np.float)
     funest_params = funest_params.astype(np.float)
     return [arab_params, funest_params]
 
+
+def fudge_milen_habitats_by_hand(cl_id,arab_param, funest_param):
+    # Modify larval habitat parameters by hand
+    mod_factor_dict = {
+        # Bbondo:
+        "80201_1": 0.5,
+        "80201_2": 0.5,
+        "80201_5": 0.5,
+        "80201_6": 0.5,
+        "80201_8": 0.5,
+        "80201_10": 0.5,
+        "80201_12": 0.5,
+        # Chabbobboma:
+        "80202_2": 2.0,
+        "80202_4": 2.0,
+        "80202_7": 2.0,
+        "80202_8": 2.0,
+        "80202_9": 2.0,
+        "80202_10": 2.0,
+        "80203_6": 2.0,
+        "80203_7": 2.0,
+        # Chisanga:
+        "80204_1": 1.5,
+        "80204_4": 2.0,
+        "80204_6": 1.5,
+        "80204_7": 1.5,
+        "80204_8": 2.0,
+        "80204_9": 1.5,
+        "80204_10": 1.5,
+        # Chiyabi:
+        "81102_1": 2.0,
+        "81102_2": 2.0,
+        "81102_3": 2.0,
+        "81102_4": 2.0,
+        "81102_5": 2.0,
+        "81102_6": 2.0,
+        "81102_9": 2.0,
+        # Luumbo:
+        "80208_1": 2.0,
+        "80208_4": 2.0,
+        "80208_5": 2.0,
+        "80208_7": 2.0,
+        "80208_8": 2.0,
+        "80208_10": 2.0,
+        # Munyumbwe:
+        "80209_2": 1.5,
+        "80209_5": 0.67,
+        "80209_6": 2.0,
+        "80209_7": 1.5,
+        "80209_8": 0.67,
+        # Nyanga Chamwe:
+        "80210_3": 0.15,
+        "80210_4": 0.15,
+        "80210_5": 0.15,
+        "80210_6": 0.15,
+        "80210_7": 0.15,
+        "80210_8": 0.15,
+        "80210_9": 0.15,
+        "80210_10": 0.15,
+        "80210_11": 0.15,
+        "80210_12": 0.15,
+        # Sinafala:
+        "80204_7": 2.0,
+        "80211_1": 2.0,
+        "80211_3": 2.0,
+        "80211_4": 2.0,
+        "80211_5": 1.5,
+        "80211_6": 2.0,
+        "80211_7": 2.0,
+        "80211_8": 1.5,
+        # Sinamalima:
+        "81111_1": 2.0,
+        "81111_2": 2.0,
+        "81111_3": 2.0,
+        "81111_4": 1.5,
+        "81111_5": 2.0,
+        "81111_6": 2.0,
+        "81111_7": 1.5,
+        "81111_8": 2.0,
+    }
+    try:
+        return [arab_param * mod_factor_dict[cl_id],
+                funest_param * mod_factor_dict[cl_id]]
+    except KeyError:
+        return [arab_param, funest_param]
 
 def milen_cluster_climate_category(cluster_id, base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
     # Return the climate category for a given cluster ID
@@ -583,7 +673,6 @@ HFCA_milen_cluster_lookup = {
                   "80209_9",
                   "80209_10"],
     "Nyanga Chaamwe": ["80210_1",
-                       "80210_2",
                        "80210_3",
                        "80210_4",
                        "80210_5",
@@ -759,9 +848,12 @@ def add_cell_intervention_timing_rugs_to_plot(ax,cell_ids,start_date="2007-01-01
 
 
 
-
-
-
+def find_cells_for_this_milen_cluster(mc_name, base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+    mc_lookup_df = pd.read_csv(base + "data/milen_clusters/cluster_to_grid_lookup.csv")
+    in_mc = mc_lookup_df['cluster_id'] == mc_name
+    cell_list = list(set(mc_lookup_df['grid_cell'][in_mc]))
+    cell_list.sort()
+    return np.array(cell_list)
 
 
 

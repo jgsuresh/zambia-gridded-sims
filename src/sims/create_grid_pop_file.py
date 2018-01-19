@@ -10,7 +10,7 @@ def get_catch_grid(catch_name):
     if catch_name == 'all':
         catch_df = grid_df
     else:
-        print "catch_name = ",catch_name
+        print("catch_name = ",catch_name)
         catch_df = grid_df[grid_df['catchment']==catch_name]
     catch_df = catch_df.reset_index()
     return catch_df
@@ -40,7 +40,7 @@ def find_max_pix_pop(survey_df, lat_bnds, long_bnds):
     pix_df = survey_df[in_pix]
 
     rd_pop = np.zeros(10)
-    for i in xrange(10):
+    for i in range(10):
         rd_pop[i] = np.sum(pix_df['round']==i+1)
 
     return np.max(rd_pop)

@@ -2,7 +2,7 @@
 Run multi-node simulation
 """
 
-from experiment_setup_new import *
+from experiment_setup import *
 from simtools.SetupParser import SetupParser
 import sys
 
@@ -33,21 +33,21 @@ try:
     catch = sys.argv[5]
 
 except:
-    print "Incorrect or missing inputs "
+    print("Incorrect or missing inputs ")
     run_mode = 1
-    priority = "AboveNormal"
+    priority = "Normal"
     coreset = "emod_abcd"
     num_cores = 12
     milen_catch_list = ['bbondo', 'chabbobboma', 'chisanga', 'chiyabi', 'luumbo', 'munyumbwe', 'nyanga chaamwe',
                         'sinafala', 'sinamalima']
-    catch = milen_catch_list[8]
+    catch = milen_catch_list[6]
 
 
 # ===================================================================================
 
 if '_' in catch:
     catch = catch.replace('_',' ')
-exp_name = '{}_full_old_MBGSR'.format(catch)
+exp_name = '{}_mod_hab_params_v1'.format(catch)
 
 gravity_migr_params = np.array([7.50395776e-06, 9.65648371e-01, 9.65648371e-01, -1.10305489e+00])
 
@@ -85,10 +85,11 @@ comps_exp = COMPS_Experiment(base,
                              mda_fn=mda_fn,
                              stepd_fn=stepd_fn,
                              larval_params_mode="milen",
-                             immunity_mode="milen")
+                             immunity_mode="milen",
+                             fudge_milen_habitats=True)
 
 if run_mode == 0:
-    comps_exp.file_setup()  # 1. Run this first to set up input files.  When submitting experiment to COMPS, comment this line out.
+    comps_exp.file_setup(generate_climate_files=False)  # 1. Run this first to set up input files.  When submitting experiment to COMPS, comment this line out.
 
 if __name__ == "__main__":
 

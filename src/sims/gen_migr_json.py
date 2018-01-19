@@ -24,7 +24,7 @@ def load_demo(demo_file):
     node_id = np.ones(N)
     pop = np.ones(N)
 
-    for i in xrange(N):
+    for i in range(N):
         node = demo_dict['Nodes'][i]
         lat[i] = node['NodeAttributes']['Latitude']
         long[i] = node['NodeAttributes']['Longitude']
@@ -52,11 +52,11 @@ def load_demo(demo_file):
     # return labels
 
 def cluster_pops(df, plot=True):
-    print "DBSCAN clustering..."
+    print("DBSCAN clustering...")
     clusterer = DBSCAN(min_samples=5, eps=0.0095)
     clusterer.fit(np.column_stack((df['lat'],df['long'])),sample_weight=df['pop'])
     labels = np.copy(clusterer.labels_)
-    print "DBSCAN clustering finished."
+    print("DBSCAN clustering finished.")
 
     if plot:
         plt.figure()
@@ -153,10 +153,10 @@ def link_rates_txt_2_bin(rates_txt_file_path, rates_bin_file_path, route="local"
             (net[ID], net_rate[ID]) = zip(*trimmed_rates)
             # print(net[ID], net_rate[ID])
 
-        for i in xrange(MAX_DESTINATIONS_BY_ROUTE[route]):
+        for i in range(MAX_DESTINATIONS_BY_ROUTE[route]):
             ID_write.append(0)
             ID_rate_write.append(0)
-        for i in xrange(len(net[ID])):
+        for i in range(len(net[ID])):
             ID_write[i] = net[ID][i]
             ID_rate_write[i] = net_rate[ID][i]
         s_write = pack('L' * len(ID_write), *ID_write)
@@ -176,9 +176,8 @@ def save_migration_header(demographics_file_path, outfilename=None):
     # compiledemog.py too could be refactored towards object-orientedness
     # the demographics_file_path supplied here may be different from self.demographics_file_path)
     compiledemog.main(demographics_file_path)
-    import createmigrationheader
-    createmigrationheader.main('dtk-tools', re.sub('\.json$', '.compiled.json', demographics_file_path), 'local',
-                               outfilename=outfilename)
+    from create_migration_header import main
+    main('dtk-tools', re.sub('\.json$', '.compiled.json', demographics_file_path), 'local', outfilename=outfilename)
 
 
 def gen_gravity_links_json(demo_file,grav_params,outf=None):

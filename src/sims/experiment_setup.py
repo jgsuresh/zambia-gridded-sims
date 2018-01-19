@@ -51,7 +51,8 @@ class COMPS_Experiment:
                  irs_fn=None,
                  msat_fn=None,
                  mda_fn=None,
-                 stepd_fn=None):
+                 stepd_fn=None,
+                 fudge_milen_habitats=False):
 
         self.base = base
         self.exp_name = exp_name
@@ -77,6 +78,9 @@ class COMPS_Experiment:
         self.msat_fn = msat_fn
         self.mda_fn = mda_fn
         self.stepd_fn = stepd_fn
+
+        self.fudge_milen_habitats = fudge_milen_habitats
+
         # Ensure directories exist:
         self.ensure_filesystem()
 
@@ -407,7 +411,7 @@ class COMPS_Experiment:
             grid_cells = find_cells_for_this_catchment(self.catch)
 
             # From those grid cells, and the Milen-clusters they correspond to, get best-fit larval habitat parameters
-            arab_params,funest_params = find_milen_larval_param_fit_for_grid_cells(grid_cells)
+            arab_params,funest_params = find_milen_larval_param_fit_for_grid_cells(grid_cells,fudge_milen_habitats=self.fudge_milen_habitats)
 
             # Loop over nodes in demographics file (which will, by construction, correspond to the grid pop csv ordering)
             i = 0
@@ -481,7 +485,7 @@ class COMPS_Experiment:
 
         # Generate migration binary:
         migration_filename = self.cb.get_param('Local_Migration_Filename')
-        print "migration_filename: ",migration_filename
+        print("migration_filename: ",migration_filename)
         MigrationGenerator.link_rates_txt_2_bin(rates_txt_fp,
                                                 self.exp_base+migration_filename)
 
@@ -524,11 +528,6 @@ class COMPS_Experiment:
         def generate_immun_dict_from_demo_file(cell_ids, node_ids):
             n_nodes = len(cell_ids)
             immun_fn_list = closest_milen_immunity_overlay_filenames_for_grid_cells(cell_ids)
-
-            # print cell_ids
-            # print immun_fn_list
-            # for i in range(len(cell_ids)):
-            #     print "Cell id {} has immun fn {}".format(cell_ids[i],immun_fn_list[i])
 
             d = {}
             d["Nodes"] = []
@@ -758,22 +757,22 @@ class COMPS_Experiment:
         # self.multinode_setup()
 
         if generate_demographics_file:
-            print "Generating demographics file..."
+            print("Generating demographics file...")
             self.gen_demo_file(self.grid_pop_csv_file)
 
         if generate_immunity_file:
-            print "Generating immunity files..."
+            print("Generating immunity files...")
             if self.immunity_mode == "uniform":
                 self.get_immunity_file_from_single_node()
             elif self.immunity_mode == "milen":
                 self.gen_immunity_file_from_milen_clusters()
 
         if generate_migration_files:
-            print "Generating migration files..."
+            print("Generating migration files...")
             self.gen_migration_files()
 
         if generate_climate_files:
-            print "Generating climate files..."
+            print("Generating climate files...")
             SetupParser.init()
             cg = ClimateGenerator(self.demo_fp_full,
                                   self.exp_base + 'Logs/climate_wo.json',

@@ -30,7 +30,7 @@ arg_dict["emod_abcd"] = 1
 
 for catch in milen_catch_list:
     cmd = "python setup_run.py {} {} {} {} {}".format(run_mode,arg_dict[priority],arg_dict[coreset],num_cores,catch)
-    print "Running {}".format(cmd)
+    print("Running {}".format(cmd))
     # os.system(cmd)
     # subprocess.call(["python","setup_run.py",run_mode,arg_dict[priority],arg_dict[coreset],num_cores,catch])
     subprocess.call(cmd)
