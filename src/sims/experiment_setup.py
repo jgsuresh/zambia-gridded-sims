@@ -6,31 +6,28 @@ import os
 import json
 import pandas as pd
 import numpy as np
-from shutil import copyfile
-
-from geopy.distance import vincenty
 
 from dtk.tools.climate.ClimateGenerator import ClimateGenerator
 from dtk.tools.migration.MigrationGenerator import MigrationGenerator
 from dtk.tools.spatialworkflow.DemographicsGenerator import DemographicsGenerator
 from dtk.utils.core.DTKConfigBuilder import DTKConfigBuilder
 from dtk.vector.species import set_species_param
+from dtk.interventions.itn_age_season import add_ITN_age_season
+from dtk.interventions.health_seeking import add_health_seeking
+from dtk.interventions.irs import add_IRS
 from simtools.ExperimentManager.ExperimentManagerFactory import ExperimentManagerFactory
 from simtools.ModBuilder import ModBuilder, ModFn
 from simtools.SetupParser import SetupParser
-
-
-from relative_time import *
-from dtk.utils.core.DTKConfigBuilder import DTKConfigBuilder
-from simtools.SetupParser import SetupParser
-from dtk.interventions.itn_age_season import add_ITN_age_season
 from malaria.interventions.malaria_drug_campaigns import add_drug_campaign
-from dtk.interventions.health_seeking import add_health_seeking
-from dtk.interventions.irs import add_IRS
 # from dtk.utils.reports.MalariaReport import add_summary_report
 from malaria.reports.MalariaReport import add_summary_report
-# from chiyabi_single_node_setup import setup_chiyabi_single_node
-import pandas as pd
+
+from relative_time import *
+from gridded_sim_general import *
+from grid_ids_to_nodes import generate_lookup
+from gen_migr_json import gen_gravity_links_json, save_link_rates_to_txt
+from gridded_sim_general import *
+
 
 
 class COMPS_Experiment:
@@ -38,108 +35,110 @@ class COMPS_Experiment:
     def __init__(self,
                  base,
                  exp_name,
+                 catch='all',
                  grid_pop_csv_file=None,
                  imm_1node_fp=None,
-                 immunity_on=True,
+                 larval_params_mode='uniform',
+                 immunity_mode='uniform',
                  migration_on=True,
-                 intervention_on=True,
-                 gridded_interventions=False,
+                 gravity_migr_params=None,
                  rcd_people_num=5,
                  start_year=2001,
                  sim_length_years=19,
-                 change_const=False,
-                 change_water=True,
-                 gravity_migr=False):
+                 num_cores=12,
+                 healthseek_fn=None,
+                 itn_fn=None,
+                 irs_fn=None,
+                 msat_fn=None,
+                 mda_fn=None,
+                 stepd_fn=None):
 
         self.base = base
         self.exp_name = exp_name
-        self.grid_pop_csv_file=grid_pop_csv_file
+        self.exp_base = base + 'data/COMPS_experiments/{}/'.format(exp_name)
+        self.catch = catch
+        self.grid_pop_csv_file = grid_pop_csv_file
         self.imm_1node_fp = imm_1node_fp
+        self.larval_params_mode = larval_params_mode
+        self.immunity_mode = immunity_mode
 
-        self.immunity_on = immunity_on
         self.migration_on = migration_on
-        self.intervention_on = intervention_on
-        self.gridded_interventions = gridded_interventions
-        self.rcd_people_num=rcd_people_num
+        self.gravity_migr_params = gravity_migr_params
+        self.rcd_people_num = rcd_people_num
 
         self.start_year = start_year
         self.sim_length_years = sim_length_years
 
-        self.change_const=change_const
-        self.change_water=change_water
+        self.num_cores = num_cores
 
-        self.gravity_migr = gravity_migr
-
+        self.healthseek_fn = healthseek_fn
+        self.itn_fn = itn_fn
+        self.irs_fn = irs_fn
+        self.msat_fn = msat_fn
+        self.mda_fn = mda_fn
+        self.stepd_fn = stepd_fn
         # Ensure directories exist:
-        # File system setup:
-        self.ensure_dir('C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/experiments/{}/'.format(exp_name))
-        self.ensure_dir(base)
-        self.ensure_dir(base + 'Demographics/')
-        self.ensure_dir(base + 'Demographics/MultiNode/')
-        self.ensure_dir(base + 'Demographics/SingleNode/')
-        self.ensure_dir(base + 'Immunity/')
-        self.ensure_dir(base + 'Immunity/MultiNode/')
-        self.ensure_dir(base + 'Immunity/SingleNode/')
-        self.ensure_dir(base + 'Climate/')
-        self.ensure_dir(base + 'Climate/MultiNode/')
-        self.ensure_dir(base + 'Climate/SingleNode/')
-        self.ensure_dir(base + 'Migration/')
-        self.ensure_dir(base + '../logs/')
-
-        exe_path = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/experiments/{}/inputs/Eradication.exe".format(exp_name)
-        if not os.path.isfile(exe_path):
-            print "Copying executable into file path..."
-            # copyfile("C:\Users\jsuresh\OneDrive - IDMOD\Code\zambia\inputs\Eradication.exe", exe_path)
-            copyfile("C:\Code\executables\Build-121\Eradication.exe", exe_path)
+        self.ensure_filesystem()
 
         self.cb = self.build_cb()
-        self.basic_chiyabi_setup()
+        self.multinode_setup() # Assume no single-node for now
+        self.basic_sim_setup()
 
 
     #################################################################################################
     # BASIC SETUP (CONFIG BUILDER + DEMOGRAPHICS FILE)
 
-    def ensure_dir(self,file_path):
-        directory = os.path.dirname(file_path)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
+    def ensure_filesystem(self):
+        def ensure_dir(file_path):
+            directory = os.path.dirname(file_path)
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+
+        ensure_dir(self.exp_base)
+        ensure_dir(self.exp_base + 'Demographics/')
+        ensure_dir(self.exp_base + 'Immunity/')
+        ensure_dir(self.exp_base + 'Climate/')
+        ensure_dir(self.exp_base + 'Migration/')
+        ensure_dir(self.exp_base + 'Logs/')
 
     def build_cb(self):
         location = 'HPC'
         SetupParser.default_block = location
 
         cb = DTKConfigBuilder.from_defaults('MALARIA_SIM')
-        cb.set_experiment_executable(self.base + 'Eradication.exe')
-        cb.set_input_files_root(self.base)
+        cb.set_experiment_executable(self.base + 'bin/Eradication.exe')
+        cb.set_input_files_root(self.exp_base)
 
-        cb.set_dll_root("C:/Code/executables/Build-121/")
+        # Tell config builder where to find dlls for specified Bamboo build of executable
+        cb.set_dll_root(self.base + 'bin/')
 
         return cb
 
-    def basic_chiyabi_setup(self, record_events=True):
+    def basic_sim_setup(self, record_events=True):
 
+        # Miscellaneous:
         self.cb.set_param("Enable_Demographics_Other", 1)
         self.cb.set_param("Enable_Demographics_Builtin", 0)
         self.cb.set_param("Valid_Intervention_States", [])
+        self.cb.set_param("New_Diagnostic_Sensitivity", 0.025) # 40/uL
 
-
+        # Human population properties:
         self.cb.update_params({
             'Birth_Rate_Dependence': 'FIXED_BIRTH_RATE',  # Match demographics file for constant population size (with exponential age distribution)
             'Enable_Nondisease_Mortality': 1,
-            'New_Diagnostic_Sensitivity': 0.025  # 40/uL
         })
 
 
-        #######################################################################################################
-        # VECTOR-RELATED PARAMETERS:
-        #######################################################################################################
-
+        # Vector properties:
         self.cb.update_params({'Vector_Species_Names': ['arabiensis', 'funestus']})
+
+        # Arabiensis
         set_species_param(self.cb, 'arabiensis', 'Larval_Habitat_Types', {
             "CONSTANT": 2000000.0,
             "TEMPORARY_RAINFALL": 100000000.0
         })
 
+        # Funestus
         set_species_param(self.cb, 'funestus', 'Larval_Habitat_Types', {
             "LINEAR_SPLINE": {
                 "Capacity_Distribution_Per_Year": {
@@ -173,39 +172,25 @@ class COMPS_Experiment:
                     ]
                 },
                 "Max_Larval_Capacity": 100000000.0
-                # "Max_Larval_Capacity": 10000000000.0 # TESTING: From Caitlin's file
             },
             "WATER_VEGETATION": 2000000.0
         })
 
 
-
-        #######################################################################################################
-        # IMMUNITY-RELATED PARAMETERS:
-        #######################################################################################################
-        if self.immunity_on:
-            self.cb.update_params({
+        # Immunity:
+        self.cb.update_params({
                 "Enable_Immunity_Initialization_Distribution": 1,
                 "Immunity_Initialization_Distribution_Type": "DISTRIBUTION_COMPLEX",
-            })
+        })
 
-        #######################################################################################################
-        # RECORDING EVENTS (FOR INTERVENTIONS AND/OR MIGRATIONS):
-        #######################################################################################################
 
+        # Event recording:
         intervene_events_list = ["Bednet_Got_New_One","Bednet_Using","Bednet_Discarded"]
         migration_events_list = ["Immigrating", "Emigrating"]
+        # case_events_list = ["NewClinicalCase",
 
-        # if self.migration_on and not self.intervention_on:
-        #     full_events_list = migration_events_list
-        # elif not self.migration_on and self.intervention_on:
-        #     full_events_list = intervene_events_list
-        # elif self.migration_on and self.intervention_on:
-        #     full_events_list = migration_events_list + intervene_events_list
+        full_events_list = intervene_events_list # migration events too verbose
 
-        full_events_list = migration_events_list #intervene_events_list #fixme migration events too verbose.
-
-        # if self.migration_on or self.intervention_on:
         self.cb.update_params({
             "Report_Event_Recorder": 1,
             "Report_Event_Recorder_Ignore_Events_In_List": 0,
@@ -213,11 +198,10 @@ class COMPS_Experiment:
             "Report_Event_Recorder_Events": full_events_list
         })
 
-        #######################################################################################################
-        # SPATIAL REPORTING:
-        #######################################################################################################
+
+        # Spatial reporting:
         self.cb.update_params({
-            'Enable_Spatial_Output': 1,  # spatial reporting
+            'Enable_Spatial_Output': 1,  # turn on spatial reporting
             'Spatial_Output_Channels': ['Infectious_Vectors', 'Adult_Vectors', 'New_Infections', 'Population',
                                         'Prevalence',
                                         'New_Diagnostic_Prevalence', 'Daily_EIR', 'New_Clinical_Cases',
@@ -228,157 +212,125 @@ class COMPS_Experiment:
 
         add_summary_report(self.cb)
 
+        # Basic health-seeking
+        self.implement_dummy_healthseeking()
 
-        # fixme Added so I don't keep getting stupid "Invalid IndividualProperties key 'DrugStatus' found in demographics file" error
-        self.baseline_chiyabi_healthseeking(self.cb)
-        # self.implement_chiyabi_interventions(self.cb, False, False, True, False, True, True)
-        # add_health_seeking(self.cb,
-        #                    start_day=1,
-        #                    targets=[{'trigger': 'NewClinicalCase',
-        #                              'coverage': 0.001, 'agemin': 0,
-        #                              'agemax': 130,
-        #                              'seek': 0, 'rate': 0}],
-        #                    drug=['Artemether', 'Lumefantrine'],
-        #                    dosing='FullTreatmentNewDetectionTech',
-        #                    nodes={"class": "NodeSetAll"},
-        #                    duration=self.num_years*365)
-
-    def baseline_chiyabi_healthseeking(self,cb):
-        use_fulldate = True
-        # start_date = "2001-01-01"  # Day 1 of simulation
-        # date_format = "%Y-%m-%d"
-        # sim_duration = 365 * 19  # length in days
-        # self.cb.params['Simulation_Duration'] = sim_duration
+    def implement_dummy_healthseeking(self):
+        # Implement dummy health-seeking behavior for one day at beginning of simulation, to avoid DrugStatus error.
         start_date = "{}-01-01".format(self.start_year)  # Day 1 of simulation
         date_format = "%Y-%m-%d"
         sim_duration = 365 * self.sim_length_years  # length in days
         self.cb.params['Simulation_Duration'] = sim_duration
 
+        start_date_refmt = convert_to_day(start_date, start_date, date_format)
 
-        # Prevent DTK from spitting out too many messages
-        self.cb.params['logLevel_JsonConfigurable'] = "WARNING"
-        self.cb.params['Disable_IP_Whitelist'] = 1
-
-        # Choose to split drug campaign events in two
-        split_drug_campaign = True
-
-        # Event information files
-        if not self.gridded_interventions:
-            itn_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_itn_events.csv"
-            irs_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_irs_events.csv"
-            msat_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_msat_events.csv"
-            mda_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_mda_events.csv"
-            healthseek_event_file = "C:/Users/jsuresh//OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_healthseek_events.csv"
-            stepd_event_file = "C:/Users/jsuresh//OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_stepd_events.csv"
-        else:
-            itn_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_itn_events.csv"
-            irs_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_irs_events.csv"
-            msat_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_msat_events.csv"
-            mda_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_mda_events.csv"
-            healthseek_event_file = "C:/Users/jsuresh//OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_healthseek_events.csv"
-            stepd_event_file = "C:/Users/jsuresh//OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_stepd_events.csv"
-
-        # Import event info
-        itn_events = pd.read_csv(itn_event_file)
-        irs_events = pd.read_csv(irs_event_file)
-        msat_events = pd.read_csv(msat_event_file)
-        mda_events = pd.read_csv(mda_event_file)
-        healthseek_events = pd.read_csv(healthseek_event_file)
-        stepd_events = pd.read_csv(stepd_event_file)
-
-
-        # Compute simulation days relative to start date or use default in file
-        use_fulldate = True #fixme
-        if use_fulldate:
-            itn_events['simday'] = [convert_to_day(x, start_date, date_format) for x in itn_events.fulldate]
-            irs_events['simday'] = [convert_to_day(x, start_date, date_format) for x in irs_events.fulldate]
-            msat_events['simday'] = [convert_to_day(x, start_date, date_format) for x in msat_events.fulldate]
-            mda_events['simday'] = [convert_to_day(x, start_date, date_format) for x in mda_events.fulldate]
-            healthseek_events['simday'] = [convert_to_day(x, start_date, date_format) for x in
-                                           healthseek_events.fulldate]
-            stepd_events['simday'] = [convert_to_day(x, start_date, date_format) for x in stepd_events.fulldate]
-        else:
-            itn_events['simday'] = itn_events.date
-            irs_events['simday'] = irs_events.date
-            msat_events['simday'] = msat_events.date
-            mda_events['simday'] = mda_events.date
-            healthseek_events['simday'] = healthseek_events.date
-            stepd_events['simday'] = stepd_events.date
-
-
-        # Always add baseline health-seeking; provide option on health-seeking step-up
-        hs = 0
-
-
-        # if (len(healthseek_events) > 1) & include_healthseek:
-        #     hs_duration = float(healthseek_events['duration'][hs])
-        # else:
-        #     hs_duration = 40 * 365
-
-        # hs_duration = 40 * 365
-        hs_duration = float(healthseek_events['duration'][hs])
-
-
-
-        if self.gridded_interventions:
-            from grid_ids_to_nodes import generate_lookup
-            # fixme very ugly way to do this
-            self.demo_fp_from_input = "Demographics/{}/demo.json".format('MultiNode')
-            self.demo_fp_full = os.path.join(self.base, self.demo_fp_from_input)
-            nodeid_lookup, pop_lookup = generate_lookup(self.demo_fp_full)
-
-            nodes = {"class": "NodeSetNodeList", "Node_List": [nodeid_lookup[healthseek_events['grid.cell'][hs]]]}
-        else:
-            nodes = {"class": "NodeSetAll"}
-
-        add_health_seeking(cb,
-                           start_day=float(healthseek_events['simday'][hs]),
+        add_health_seeking(self.cb,
+                           start_day=float(start_date_refmt),
                            targets=[{'trigger': 'NewClinicalCase',
-                                     'coverage': float(healthseek_events['cov_newclin_youth'][hs]), 'agemin': 0,
+                                     'coverage': 0.1,
+                                     'agemin': 0,
                                      'agemax': 5,
                                      'seek': 1, 'rate': 0.3},
                                     {'trigger': 'NewClinicalCase',
-                                     'coverage': float(healthseek_events['cov_newclin_adult'][hs]), 'agemin': 5,
+                                     'coverage': 0.1,
+                                     'agemin': 5,
                                      'agemax': 100,
                                      'seek': 1,
                                      'rate': 0.3},
                                     {'trigger': 'NewSevereCase',
-                                     'coverage': float(healthseek_events['cov_severe_youth'][hs]), 'agemin': 0,
+                                     'coverage': 0.1,
+                                     'agemin': 0,
                                      'agemax': 5,
                                      'seek': 1, 'rate': 0.3},
                                     {'trigger': 'NewSevereCase',
-                                     'coverage': float(healthseek_events['cov_severe_adult'][hs]), 'agemin': 5,
+                                     'coverage': 0.1,
+                                     'agemin': 5,
                                      'agemax': 100,
                                      'seek': 1,
                                      'rate': 0.3}],
                            drug=['Artemether', 'Lumefantrine'],
                            dosing='FullTreatmentNewDetectionTech',
-                           nodes=nodes,
-                           duration=hs_duration)
+                           nodes={"class": "NodeSetAll"},
+                           duration=float(1))
+
+    def implement_baseline_healthseeking(self):
+        # Implement basic health-seeking behavior for all individuals in simulation
+        start_date = "{}-01-01".format(self.start_year)  # Day 1 of simulation
+        date_format = "%Y-%m-%d"
+        sim_duration = 365 * self.sim_length_years  # length in days
+        self.cb.params['Simulation_Duration'] = sim_duration
+
+        # Prevent DTK from spitting out too many messages
+        self.cb.params['logLevel_JsonConfigurable'] = "WARNING"
+        self.cb.params['Disable_IP_Whitelist'] = 1
+
+        # Event information files
+
+        if self.healthseek_fn==None:
+            healthseek_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_healthseek_events.csv'
+        else:
+            healthseek_event_file = self.healthseek_fn
+        healthseek_events = pd.read_csv(healthseek_event_file)
+
+        # Compute simulation days relative to start date or use default in file
+        healthseek_events['simday'] = [convert_to_day(x, start_date, date_format) for x in
+                                       healthseek_events.fulldate]
+
+        # Get grid cell to node ID lookup table:
+        nodeid_lookup,pop_lookup = generate_lookup(self.demo_fp_full)
+
+        # Restrict to catchment of interest
+        catch_cells = find_cells_for_this_catchment(self.catch)
+        healthseek_events = healthseek_events[np.in1d(healthseek_events['grid_cell'],catch_cells)]
+        healthseek_events.reset_index(inplace=True)
+
+        for hs in range(len(healthseek_events)):
+            node_list = [nodeid_lookup[healthseek_events['grid_cell'][hs]]]
+
+            add_health_seeking(self.cb,
+                               start_day=float(healthseek_events['simday'][hs]),
+                               targets=[{'trigger': 'NewClinicalCase',
+                                         'coverage': float(healthseek_events['cov_newclin_youth'][hs]), 'agemin': 0,
+                                         'agemax': 5,
+                                         'seek': 1, 'rate': 0.3},
+                                        {'trigger': 'NewClinicalCase',
+                                         'coverage': float(healthseek_events['cov_newclin_adult'][hs]), 'agemin': 5,
+                                         'agemax': 100,
+                                         'seek': 1,
+                                         'rate': 0.3},
+                                        {'trigger': 'NewSevereCase',
+                                         'coverage': float(healthseek_events['cov_severe_youth'][hs]), 'agemin': 0,
+                                         'agemax': 5,
+                                         'seek': 1, 'rate': 0.3},
+                                        {'trigger': 'NewSevereCase',
+                                         'coverage': float(healthseek_events['cov_severe_adult'][hs]), 'agemin': 5,
+                                         'agemax': 100,
+                                         'seek': 1,
+                                         'rate': 0.3}],
+                               drug=['Artemether', 'Lumefantrine'],
+                               dosing='FullTreatmentNewDetectionTech',
+                               nodes={"class": "NodeSetNodeList", "Node_List": node_list},
+                               duration=float(healthseek_events['duration'][hs]))
 
     def multinode_setup(self):
-        self.demo_fp_from_input = "Demographics/{}/demo.json".format(self.run_mode)
-        self.demo_fp_full = os.path.join(self.base,self.demo_fp_from_input)
-        self.immun_fp_from_input = "Immunity/{}/immun.json".format(self.run_mode)
-        self.immun_fp_full = os.path.join(self.base, self.immun_fp_from_input)
+        self.demo_fp_from_input = "Demographics/demo.json"
+        self.demo_fp_full = os.path.join(self.exp_base,self.demo_fp_from_input)
+        self.immun_fp_from_input = "Immunity/immun.json"
+        self.immun_fp_full = os.path.join(self.exp_base, self.immun_fp_from_input)
 
-        self.cb.set_param("Num_Cores", 12)
+        self.cb.set_param("Num_Cores", self.num_cores)
 
-        if self.immunity_on:
-            self.cb.update_params({'Demographics_Filenames': [self.demo_fp_from_input, self.immun_fp_from_input]})
-        else:
-            self.cb.update_params({'Demographics_Filenames': [self.demo_fp_from_input]})
+        # self.cb.set_param('Demographics_Filenames', [self.demo_fp_from_input, self.immun_fp_from_input])
+        self.cb.update_params({'Demographics_Filenames': [self.demo_fp_from_input, self.immun_fp_from_input]})
 
         #######################################################################################################
         # CLIMATE-RELATED PARAMETERS:
         #######################################################################################################
-        climate_folder = "Climate/{}".format(self.run_mode)
-
         self.cb.update_params({
-            'Air_Temperature_Filename': "{}/Zambia_30arcsec_air_temperature_daily.bin".format(climate_folder),
-            'Land_Temperature_Filename': "{}/Zambia_30arcsec_air_temperature_daily.bin".format(climate_folder),
-            'Rainfall_Filename': "{}/Zambia_30arcsec_rainfall_daily.bin".format(climate_folder),
-            'Relative_Humidity_Filename': "{}/Zambia_30arcsec_relative_humidity_daily.bin".format(climate_folder)
+            'Air_Temperature_Filename': "Climate/Zambia_30arcsec_air_temperature_daily.bin",
+            'Land_Temperature_Filename': "Climate/Zambia_30arcsec_air_temperature_daily.bin",
+            'Rainfall_Filename': "Climate/Zambia_30arcsec_rainfall_daily.bin",
+            'Relative_Humidity_Filename': "Climate/Zambia_30arcsec_relative_humidity_daily.bin"
         })
 
         #######################################################################################################
@@ -391,115 +343,40 @@ class COMPS_Experiment:
                                     'Enable_Local_Migration':1,
                                     'Migration_Pattern': 'SINGLE_ROUND_TRIPS', # human migration
                                     'Local_Migration_Roundtrip_Duration': 2, # mean of exponential days-at-destination distribution
-                                    'Local_Migration_Roundtrip_Probability': 0.95 # fraction that return
+                                    'Local_Migration_Roundtrip_Probability': 0.95, # fraction that return
+                                    'x_Local_Migration': 4 # amplitude of migration
             })
         elif not self.migration_on:
             self.cb.update_params({'Migration_Model': 'NO_MIGRATION'})  #'NO_MIGRATION' is actually default for MALARIA_SIM, but might as well make sure it's off
 
-        # #######################################################################################################
-        # # SPATIAL REPORTING:
-        # #######################################################################################################
-        # self.cb.update_params({
-        #     'Enable_Spatial_Output': 1,  # spatial reporting
-        #     'Spatial_Output_Channels': ['Infectious_Vectors', 'Adult_Vectors', 'New_Infections', 'Population',
-        #                                 'Prevalence',
-        #                                 'New_Diagnostic_Prevalence', 'Daily_EIR', 'New_Clinical_Cases',
-        #                                 'Human_Infectious_Reservoir', 'Daily_Bites_Per_Human',
-        #                                 'Land_Temperature',
-        #                                 'Relative_Humidity', 'Rainfall', 'Air_Temperature']
-        # })
-
-    def singlenode_setup(self):
-        self.demo_fp_from_input = "Demographics/{}/demo.json".format(self.run_mode)
-        self.demo_fp_full = os.path.join(self.base, self.demo_fp_from_input)
-        self.immun_fp_from_input = "Immunity/{}/immun.json".format(self.run_mode)
-        self.immun_fp_full = os.path.join(self.base, self.immun_fp_from_input)
-
-        self.cb.set_param("Num_Cores", 1)
-
-        if self.immunity_on:
-            self.cb.update_params({'Demographics_Filenames': [self.demo_fp_from_input, self.immun_fp_from_input]})
-        else:
-            self.cb.update_params({'Demographics_Filenames': [self.demo_fp_from_input]})
-
-        #######################################################################################################
-        # CLIMATE-RELATED PARAMETERS:
-        #######################################################################################################
-        climate_folder = "Climate/{}".format(self.run_mode)
-
-        self.cb.update_params({
-            'Air_Temperature_Filename': "{}/Zambia_30arcsec_air_temperature_daily.bin".format(climate_folder),
-            'Land_Temperature_Filename': "{}/Zambia_30arcsec_air_temperature_daily.bin".format(climate_folder),
-            'Rainfall_Filename': "{}/Zambia_30arcsec_rainfall_daily.bin".format(climate_folder),
-            'Relative_Humidity_Filename': "{}/Zambia_30arcsec_relative_humidity_daily.bin".format(climate_folder)
-        })
-
     def gen_demo_file(self,input_csv,larval_params=None):
-        dg = DemographicsGenerator.from_file(self.cb, input_csv)
+        dg = DemographicsGenerator.from_file(self.cb, input_csv, catch=self.catch)
         demo_dict = dg.generate_demographics()
 
         # Add larval habitat parameters to demographics file:
-        demo_dict = self.apply_pop_scale_larval_habitats(demo_dict,larval_params=larval_params)
+        demo_dict = self.add_larval_habitats_to_demo(demo_dict, larval_params=larval_params)
 
         if larval_params:
             temp_h = larval_params['temp_h']
             linear_h = larval_params['linear_h']
-            demo_fp = self.base + "Demographics/{}/demo_temp{}_linear{}.json".format(self.run_mode,int(temp_h),int(linear_h))
+            demo_fp = self.exp_base + "Demographics/demo_temp{}_linear{}.json".format(int(temp_h),int(linear_h))
         else:
-            demo_fp = self.base + "Demographics/{}/demo.json".format(self.run_mode)
+            demo_fp = self.exp_base + "Demographics/demo.json"
 
         demo_f = open(demo_fp, 'w+')
         json.dump(demo_dict, demo_f, indent=4)
         demo_f.close()
 
-    def gen_demo_file_single_node(self, larval_params=None):
-        grid_pop_csv_file_onenode = self.grid_pop_csv_file[:-4] + "_onenode.csv"
-
-        # Check if the file already exists.  If not, create it:
-        if not os.path.isfile(grid_pop_csv_file_onenode):
-            # Conglomerate all the population into a single node:
-            f_orig = pd.read_csv(self.grid_pop_csv_file)
-            fe = f_orig.copy(deep=True)
-
-            fe = fe[['node_label', 'lat', 'lon', 'pop']]
-            fe = fe[fe['node_label']==0]
-
-            fe.loc[0,'lat'] = np.sum(f_orig['lat']*f_orig['pop'])/np.sum(f_orig['pop'])
-            fe.loc[0, 'lon'] = np.sum(f_orig['lon'] * f_orig['pop']) / np.sum(f_orig['pop'])
-            fe.loc[0, 'pop'] = np.sum(f_orig['pop'])
-
-
-            fe.to_csv(grid_pop_csv_file_onenode)
-
-        self.gen_demo_file(grid_pop_csv_file_onenode, larval_params=larval_params)
-
 
     #################################################################################################
     # LARVAL PARAMETER-RELATED FUNCTIONS:
-    def apply_pop_scale_larval_habitats(self,demo_dict, larval_params=None):
-        # scale parameters of multiple nodes in a spatial simulation
-        for node_item in demo_dict['Nodes']:
-            node_label = node_item['NodeAttributes']['FacilityName']
+    def add_larval_habitats_to_demo(self, demo_dict, nodeset='all', larval_params=None):
+        # Add larval habitat parameters (some of which scale with population) to demographics file
 
-            if larval_params:
-                const_h = larval_params['const_h']
-                temp_h = larval_params['temp_h']
-                water_h = larval_params['water_h']
-                linear_h = larval_params['linear_h']
-            else:
-                const_h = 1.
-                temp_h = 122.
-                water_h = 1.
-                linear_h = 97.
-
-            # # ramp up:
-            # const_h *= 5
-            # temp_h *= 5
-            # water_h *= 5
-            # linear_h *= 5
-
+        def add_larval_habitat_to_node(node_item, const_h,temp_h,water_h,linear_h):
             calib_single_node_pop = 1000  # for Zambia
 
+            # This is now done in the demographics generator itself:
             # birth_rate = (float(node_item['NodeAttributes']['InitialPopulation']) / (1000 + 0.0)) * 0.12329
             # node_item['NodeAttributes']['BirthRate'] = birth_rate
 
@@ -507,15 +384,8 @@ class COMPS_Experiment:
 
             temp_multiplier = temp_h * pop_multiplier
             linear_multiplier = linear_h * pop_multiplier
-            if self.change_const:
-                const_multiplier = const_h * pop_multiplier
-            else:
-                const_multiplier = const_h
-
-            if self.change_water:
-                water_multiplier = water_h * pop_multiplier
-            else:
-                water_multiplier = water_h
+            const_multiplier = const_h # NOTE: No pop multiplier
+            water_multiplier = water_h * pop_multiplier
 
             node_item['NodeAttributes']['LarvalHabitatMultiplier'] = {
                 "CONSTANT": const_multiplier,
@@ -523,6 +393,56 @@ class COMPS_Experiment:
                 "WATER_VEGETATION": water_multiplier,
                 "LINEAR_SPLINE": linear_multiplier
             }
+
+
+        if self.larval_params_mode=='milen':
+            # get grid cells from pop csv file:
+            # for those grid cells, get corresponding arab/funest params
+            # loop over nodes [order will correspond, by construction, to pop csv ordering]
+            # give each node the corresponding larval params
+
+            # Load pop csv file to get grid cell numbers:
+            # pop_df = pd.read_csv(self.grid_pop_csv_file)
+            # grid_cells = np.array(pop_df['node_label'])
+            grid_cells = find_cells_for_this_catchment(self.catch)
+
+            # From those grid cells, and the Milen-clusters they correspond to, get best-fit larval habitat parameters
+            arab_params,funest_params = find_milen_larval_param_fit_for_grid_cells(grid_cells)
+
+            # Loop over nodes in demographics file (which will, by construction, correspond to the grid pop csv ordering)
+            i = 0
+            for node_item in demo_dict['Nodes']:
+                # if larval_params:
+                #     const_h = larval_params['const_h']
+                #     temp_h = larval_params['temp_h']
+                #     water_h = larval_params['water_h']
+                #     linear_h = larval_params['linear_h']
+                # else:
+                const_h = 1.
+                temp_h = arab_params[i]
+                water_h = 1.
+                linear_h = funest_params[i]
+
+                add_larval_habitat_to_node(node_item,const_h,temp_h,water_h,linear_h)
+
+                i += 1
+
+        elif self.larval_params_mode=='uniform':
+            for node_item in demo_dict['Nodes']:
+
+                if larval_params:
+                    const_h = larval_params['const_h']
+                    temp_h = larval_params['temp_h']
+                    water_h = larval_params['water_h']
+                    linear_h = larval_params['linear_h']
+                else:
+                    const_h = 1.
+                    temp_h = 122.
+                    water_h = 1.
+                    linear_h = 97.
+
+                add_larval_habitat_to_node(node_item,const_h,temp_h,water_h,linear_h)
+
         return demo_dict
 
     def larval_param_sweeper(self,cb,temp_h,linear_h):
@@ -539,8 +459,7 @@ class COMPS_Experiment:
 
         # Check if demographics file for these parameters already exists.  If not, create it
         if not os.path.isfile(new_demo_fp_from_input):
-            if self.run_mode == "SingleNode": self.gen_demo_file_single_node(larval_params=larval_params)
-            elif self.run_mode == "MultiNode": self.gen_demo_file(self.grid_pop_csv_file,larval_params=larval_params)
+            self.gen_demo_file(self.grid_pop_csv_file,larval_params=larval_params)
 
         # Then pass this demographics file to the config_builder.
         if self.immunity_on:
@@ -552,75 +471,26 @@ class COMPS_Experiment:
 
     #################################################################################################
     # MIGRATION-RELATED FUNCTIONS:
-    def gen_basic_adjacency(self):
-
-        # Open population CSV file:
-        f_grid = pd.read_csv(self.grid_pop_csv_file)
-
-        adj_list = {}
-
-        # SPEED SLOW: COULD PROBABLY SPEED UP BY CONVERTING TO NUMPY ARRAYS FIRST
-        # Loop over all pixels:
-        for n1 in f_grid['node_label']:
-            adj_list[str(n1)] = {}
-            l1 = f_grid['node_label'] == n1
-            for n2 in f_grid['node_label']:
-                l2 = f_grid['node_label'] == n2
-
-                d = vincenty((f_grid['lat'][l1].values[0], f_grid['lon'][l1].values[0]),
-                             (f_grid['lat'][l2].values[0], f_grid['lon'][l2].values[0])).km
-                # print "d",d
-
-                if d <= self.max_migration_length_km:
-                    adj_list[str(n1)][str(n2)] = d
-
-        a_fn = self.grid_pop_csv_file[:-4] + "_adjacency.json"
-        a_f = open(a_fn, 'w')
-        json.dump(adj_list, a_f, indent=4)
-        a_f.close()
-
-        return a_fn
-    #
-    # def gen_gravity_links_json(self):
-    #     from gen_migr_json import *
-    #     df = load_demo(self.demo_fp_full)
-    #     migr_dict, p_sum = compute_migr_dict(df, grav_params, return_prob_sums=True)
-    #
-
-
     def gen_migration_files(self):
-        if self.gravity_migr:
-            from gen_migr_json import gen_gravity_links_json, save_link_rates_to_txt
-            migr_json_fp = self.base + "Migration/grav_migr_rates.json"
+        migr_json_fp = self.exp_base + "Migration/grav_migr_rates.json"
 
-            # fixme Gravity parameters don't need to be hardcoded in the future:
-            grav_params = np.array([7.50395776e-06, 9.65648371e-01, 9.65648371e-01, -1.10305489e+00])
+        migr_dict = gen_gravity_links_json(self.demo_fp_full, self.gravity_migr_params, outf=migr_json_fp)
+        rates_txt_fp = self.exp_base + "Migration/grav_migr_rates.txt"
 
-            migr_dict = gen_gravity_links_json(self.demo_fp_full, grav_params, outf=migr_json_fp)
-            rates_txt_fp = self.base + "Migration/grav_migr_rates.txt"
-
-            save_link_rates_to_txt(rates_txt_fp, migr_dict)
-        else:
-            adj_fp = self.gen_basic_adjacency()
-
-            mg = MigrationGenerator(self.demo_fp_full, adj_fp)
-            mg.generate_link_rates()
-            rates_txt_fp = './gridding/{}_migr_rates.txt'.format(self.exp_name)
-            mg.save_link_rates_to_txt(rates_txt_fp)
-
+        save_link_rates_to_txt(rates_txt_fp, migr_dict)
 
         # Generate migration binary:
         migration_filename = self.cb.get_param('Local_Migration_Filename')
         print "migration_filename: ",migration_filename
         MigrationGenerator.link_rates_txt_2_bin(rates_txt_fp,
-                                                self.base+migration_filename)
+                                                self.exp_base+migration_filename)
 
         # Generate migration header:
         MigrationGenerator.save_migration_header(self.demo_fp_full,
-                                                 outfilename=self.base +'Migration/local_migration.bin.json'
+                                                 outfilename=self.exp_base +'Migration/local_migration.bin.json'
                                                  )
 
-    def vector_migration_sweeper(self, cb,vector_migration_on):
+    def vector_migration_sweeper(self, vector_migration_on):
         if vector_migration_on:
             self.cb.update_params({
                 'Vector_Migration_Modifier_Equation': 'LINEAR',
@@ -637,12 +507,74 @@ class COMPS_Experiment:
                 'Enable_Vector_Migration_Local': 0
             # migration rate hard-coded in NodeVector::processEmigratingVectors() such that 50% total leave a 1km x 1km square per day (evenly distributed among the eight adjacent grid cells).
             })
-        return {"vector_migration": vector_migration_on}
+        return {"vec_migr": vector_migration_on}
 
     #################################################################################################
+    def gen_immunity_file_from_milen_clusters(self):
+        # Inputs:
+        #   --demographics file with Caitlin-grid cell IDs as the node labels
+        #   --CSV which maps from Caitlin-grid cell IDs to Milen-cluster IDs
+        #   --CSV which maps from Milen-cluster IDs to climate category (e.g. Sinamalima, Gwembe, etc.)
+        #   --Larval habitat parameters for same Milen-cluster IDs
+        #   --Place to find Milen's immunity files (so we can use the one that's the closest match for the given cluster)
+
+        # Outputs:
+        #   --multi-node immunity file where each node's immunity is set to the best-fit approximation by Milen's calibration
+
+        def generate_immun_dict_from_demo_file(cell_ids, node_ids):
+            n_nodes = len(cell_ids)
+            immun_fn_list = closest_milen_immunity_overlay_filenames_for_grid_cells(cell_ids)
+
+            # print cell_ids
+            # print immun_fn_list
+            # for i in range(len(cell_ids)):
+            #     print "Cell id {} has immun fn {}".format(cell_ids[i],immun_fn_list[i])
+
+            d = {}
+            d["Nodes"] = []
+            d["Defaults"] = {}
+            d["Metadata"] = {}
+            d["Metadata"]["Author"] = "Josh Suresh"
+            d["Metadata"]["IdReference"] = "Gridded world grump30arcsec"
+            d["Metadata"]["NodeCount"] = n_nodes
+
+            for i in range(n_nodes):
+                immun_fn = immun_fn_list[i]
+                f = open(immun_fn, 'r')
+                imm_dict = json.load(f)
+                f.close()
+
+                # node = {}
+                # node["NodeAttributes"] = imm_dict['Defaults'].copy()
+                node = imm_dict['Defaults'].copy()
+                node["NodeID"] = node_ids[i]
+                d["Nodes"].append(node)
+
+            return d
+
+
+        # Open demographics file
+        with open(self.demo_fp_full, 'r') as f:
+            demo_dict = json.load(f)
+
+        # Get NodeID and grid cell (encoded as FacilityName)
+        node_ids = []
+        grid_cell_ids = []
+        for node in demo_dict['Nodes']:
+            node_ids.append(node['NodeID'])
+            grid_cell_ids.append(int(node['NodeAttributes']['FacilityName']))
+
+        # Get filenames of immunity file which correspond to best-fit of larval params and climate category for this grid cell:
+        imm_dict = generate_immun_dict_from_demo_file(grid_cell_ids, node_ids)
+
+        # Dump as new json file
+        with open(self.immun_fp_full, 'w') as f:
+            json.dump(imm_dict, f, indent=4)
+
+
     def get_immunity_file_from_single_node(self):
         # Inputs:
-        #   --demographics file (e.g. generated in example_josh)
+        #   --demographics file
         #   --single-node immunity file (e.g. "Sinamalima_1_node_immune_init_p1_33_p2_117.json")
 
         # Outputs:
@@ -675,8 +607,7 @@ class COMPS_Experiment:
         with open(self.immun_fp_full, 'w') as f:
             json.dump(imm_dict, f, indent=4)
 
-    def implement_uniform_chiyabi_interventions(self, cb, include_itn, include_irs, include_healthseek, include_msat, include_mda, include_stepd):
-        use_fulldate = True
+    def implement_interventions(self, cb, include_itn, include_irs, include_msat, include_mda, include_stepd):
         start_date = "{}-01-01".format(self.start_year)  # Day 1 of simulation
         date_format = "%Y-%m-%d"
         sim_duration = 365 * self.sim_length_years  # length in days
@@ -686,244 +617,60 @@ class COMPS_Experiment:
         self.cb.params['logLevel_JsonConfigurable'] = "WARNING"
         self.cb.params['Disable_IP_Whitelist'] = 1
 
-        # Choose to split drug campaign events in two
-        split_drug_campaign = True
-
         # Event information files
-        itn_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_itn_events.csv"
-        irs_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_irs_events.csv"
-        msat_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_msat_events.csv"
-        mda_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_mda_events.csv"
-        healthseek_event_file = "C:/Users/jsuresh//OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_healthseek_events.csv"
-        stepd_event_file = "C:/Users/jsuresh//OneDrive - IDMOD/Code/zambia/cbever/chiyabi_hfca_stepd_events.csv"
+        if self.itn_fn == None:
+            itn_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_itn_events.csv'
+        else:
+            itn_event_file = self.itn_fn
+
+        if self.irs_fn == None:
+            irs_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_irs_events.csv'
+        else:
+            irs_event_file = self.irs_fn
+
+        if self.msat_fn == None:
+            msat_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_msat_events.csv'
+        else:
+            msat_event_file = self.msat_fn
+
+        if self.mda_fn == None:
+            mda_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_mda_events.csv'
+        else:
+            mda_event_file = self.mda_fn
+
+        if self.stepd_fn == None:
+            stepd_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_stepd_events.csv'
+        else:
+            stepd_event_file = self.stepd_fn
 
         # Import event info
         itn_events = pd.read_csv(itn_event_file)
         irs_events = pd.read_csv(irs_event_file)
         msat_events = pd.read_csv(msat_event_file)
         mda_events = pd.read_csv(mda_event_file)
-        healthseek_events = pd.read_csv(healthseek_event_file)
         stepd_events = pd.read_csv(stepd_event_file)
 
 
         # Compute simulation days relative to start date or use default in file
-        use_fulldate = True #fixme
-        if use_fulldate:
-            itn_events['simday'] = [convert_to_day(x, start_date, date_format) for x in itn_events.fulldate]
-            irs_events['simday'] = [convert_to_day(x, start_date, date_format) for x in irs_events.fulldate]
-            msat_events['simday'] = [convert_to_day(x, start_date, date_format) for x in msat_events.fulldate]
-            mda_events['simday'] = [convert_to_day(x, start_date, date_format) for x in mda_events.fulldate]
-            healthseek_events['simday'] = [convert_to_day(x, start_date, date_format) for x in
-                                           healthseek_events.fulldate]
-            stepd_events['simday'] = [convert_to_day(x, start_date, date_format) for x in stepd_events.fulldate]
-        else:
-            itn_events['simday'] = itn_events.date
-            irs_events['simday'] = irs_events.date
-            msat_events['simday'] = msat_events.date
-            mda_events['simday'] = mda_events.date
-            healthseek_events['simday'] = healthseek_events.date
-            stepd_events['simday'] = stepd_events.date
+        itn_events['simday'] = [convert_to_day(x, start_date, date_format) for x in itn_events.fulldate]
+        irs_events['simday'] = [convert_to_day(x, start_date, date_format) for x in irs_events.fulldate]
+        msat_events['simday'] = [convert_to_day(x, start_date, date_format) for x in msat_events.fulldate]
+        mda_events['simday'] = [convert_to_day(x, start_date, date_format) for x in mda_events.fulldate]
+        stepd_events['simday'] = [convert_to_day(x, start_date, date_format) for x in stepd_events.fulldate]
 
+        # Restrict to catchment of interest
+        catch_cells = find_cells_for_this_catchment(self.catch)
+        itn_events = itn_events[np.in1d(itn_events['grid_cell'], catch_cells)]
+        irs_events = irs_events[np.in1d(irs_events['grid_cell'], catch_cells)]
+        msat_events = msat_events[np.in1d(msat_events['grid_cell'], catch_cells)]
+        mda_events = mda_events[np.in1d(mda_events['grid_cell'], catch_cells)]
+        stepd_events = stepd_events[np.in1d(stepd_events['grid_cell'], catch_cells)]
 
-        if include_itn:
-            for itn in range(len(itn_events)):
-
-                # Add non-birth nets
-                add_ITN_age_season(cb, start=float(itn_events['simday'][itn]),
-                                   age_dep={'youth_cov': float(itn_events['age_cov'][itn]), 'youth_min_age': 5,
-                                            'youth_max_age': 20},
-                                   coverage_all=float(itn_events['cov_all'][itn]),
-                                   as_birth=False,
-                                   seasonal_dep={'min_cov': float(itn_events['min_season_cov'][itn]), 'max_day': 60},
-                                   discard={'halflife1': 260, 'halflife2': 2106,
-                                            'fraction1': float(itn_events['fast_fraction'][itn])})
-                # Add birth nets
-                if itn < (len(itn_events) - 1):
-                    birth_duration = float(itn_events['simday'][itn + 1] - itn_events['simday'][itn] - 1)
-                else:
-                    birth_duration = -1
-
-                add_ITN_age_season(cb, start=float(itn_events['simday'][itn]),
-                                   age_dep={'youth_cov': float(itn_events['age_cov'][itn]), 'youth_min_age': 5,
-                                            'youth_max_age': 20},
-                                   coverage_all=float(itn_events['cov_all'][itn]),
-                                   as_birth=True,
-                                   seasonal_dep={'min_cov': float(itn_events['min_season_cov'][itn]), 'max_day': 60},
-                                   discard={'halflife1': 260, 'halflife2': 2106,
-                                            'fraction1': float(itn_events['fast_fraction'][itn])},
-                                   duration=birth_duration)
-
-        if include_irs:
-            for irs in range(len(irs_events)):
-                add_IRS(cb, start=float(irs_events['simday'][irs]),
-                        coverage_by_ages=[{'coverage': float(irs_events['cov_all'][irs])}],
-                        initial_killing=float(irs_events['killing'][irs]), duration=float(irs_events['duration'][irs]))
-
-        # # Always add baseline health-seeking; provide option on health-seeking step-up
-        # hs = 0
-        # if (len(healthseek_events) > 1) & include_healthseek:
-        #     hs_duration = float(healthseek_events['duration'][hs])
-        # else:
-        #     hs_duration = 40 * 365
-        #
-        # add_health_seeking(cb,
-        #                    start_day=float(healthseek_events['simday'][hs]),
-        #                    targets=[{'trigger': 'NewClinicalCase',
-        #                              'coverage': float(healthseek_events['cov_newclin_youth'][hs]), 'agemin': 0,
-        #                              'agemax': 5,
-        #                              'seek': 1, 'rate': 0.3},
-        #                             {'trigger': 'NewClinicalCase',
-        #                              'coverage': float(healthseek_events['cov_newclin_adult'][hs]), 'agemin': 5,
-        #                              'agemax': 100,
-        #                              'seek': 1,
-        #                              'rate': 0.3},
-        #                             {'trigger': 'NewSevereCase',
-        #                              'coverage': float(healthseek_events['cov_severe_youth'][hs]), 'agemin': 0,
-        #                              'agemax': 5,
-        #                              'seek': 1, 'rate': 0.3},
-        #                             {'trigger': 'NewSevereCase',
-        #                              'coverage': float(healthseek_events['cov_severe_adult'][hs]), 'agemin': 5,
-        #                              'agemax': 100,
-        #                              'seek': 1,
-        #                              'rate': 0.3}],
-        #                    drug=['Artemether', 'Lumefantrine'],
-        #                    dosing='FullTreatmentNewDetectionTech',
-        #                    nodes={"class": "NodeSetAll"},
-        #                    duration=hs_duration)
-
-        if include_healthseek:
-            for hs in range(1, len(healthseek_events)):
-                add_health_seeking(cb,
-                                   start_day=float(healthseek_events['simday'][hs]),
-                                   targets=[{'trigger': 'NewClinicalCase',
-                                             'coverage': float(healthseek_events['cov_newclin_youth'][hs]), 'agemin': 0,
-                                             'agemax': 5,
-                                             'seek': 1, 'rate': 0.3},
-                                            {'trigger': 'NewClinicalCase',
-                                             'coverage': float(healthseek_events['cov_newclin_adult'][hs]), 'agemin': 5,
-                                             'agemax': 100,
-                                             'seek': 1,
-                                             'rate': 0.3},
-                                            {'trigger': 'NewSevereCase',
-                                             'coverage': float(healthseek_events['cov_severe_youth'][hs]), 'agemin': 0,
-                                             'agemax': 5,
-                                             'seek': 1, 'rate': 0.3},
-                                            {'trigger': 'NewSevereCase',
-                                             'coverage': float(healthseek_events['cov_severe_adult'][hs]), 'agemin': 5,
-                                             'agemax': 100,
-                                             'seek': 1,
-                                             'rate': 0.3}],
-                                   drug=['Artemether', 'Lumefantrine'],
-                                   dosing='FullTreatmentNewDetectionTech',
-                                   nodes={"class": "NodeSetAll"},
-                                   duration=float(healthseek_events['duration'][hs]))
-
-        if include_msat:
-            if split_drug_campaign:
-                for msat in range(len(msat_events)):
-                    add_drug_campaign(cb, campaign_type='MSAT', drug_code='AL',
-                                      start_days=[float(msat_events['simday'][msat])],
-                                      coverage=float(msat_events['cov_all'][msat]) / 2, repetitions=1, interval=60,
-                                      dosing='SingleDose',
-                                      drug_ineligibility_duration=30)
-
-                    add_drug_campaign(cb, campaign_type='MSAT', drug_code='AL',
-                                      start_days=[float(msat_events['simday'][msat] + 7)],
-                                      coverage=float(msat_events['cov_all'][msat]) / 2, repetitions=1, interval=60,
-                                      dosing='SingleDose')
-
-            else:
-                for msat in range(len(msat_events)):
-                    add_drug_campaign(cb, campaign_type='MSAT', drug_code='AL',
-                                      start_days=[float(msat_events['simday'][msat])],
-                                      coverage=msat_events['cov_all'][msat], repetitions=1, interval=60,
-                                      dosing='SingleDose')
-
-        if include_mda:
-            if split_drug_campaign:
-                for mda in range(len(mda_events)):
-                    add_drug_campaign(cb, campaign_type='MDA', drug_code='DP',
-                                      start_days=[float(mda_events['simday'][mda])],
-                                      coverage=float(mda_events['cov_all'][mda]) / 2, repetitions=1, interval=60,
-                                      dosing='SingleDose',
-                                      drug_ineligibility_duration=30)
-
-                    add_drug_campaign(cb, campaign_type='MDA', drug_code='DP',
-                                      start_days=[float(mda_events['simday'][mda] + 7)],
-                                      coverage=float(mda_events['cov_all'][mda]) / 2, repetitions=1, interval=60,
-                                      dosing='SingleDose')
-
-            else:
-                for mda in range(len(mda_events)):
-                    add_drug_campaign(cb, campaign_type='MDA', drug_code='DP',
-                                      start_days=[float(mda_events['simday'][mda])],
-                                      coverage=float(mda_events['cov_all'][mda]), repetitions=1, interval=60,
-                                      dosing='SingleDose')
-
-        if include_stepd:
-            for sd in range(len(stepd_events)):
-                add_drug_campaign(cb, campaign_type='rfMDA', drug_code='AL',
-                                  start_days=[float(stepd_events['simday'][sd])],
-                                  # coverage=float(stepd_events['coverage'][sd]),
-                                  coverage=float(self.rcd_people_num)/float(self.pop_start),
-                                  interval=float(stepd_events['interval'][sd]))
-
-        return {"ITNs": include_itn,
-                "IRS": include_irs,
-                "Healthseek": include_healthseek,
-                "MSAT": include_msat,
-                "MDA": include_mda,
-                "StepD": include_stepd}
-
-    def implement_gridded_chiyabi_interventions(self, cb, include_itn, include_irs, include_healthseek, include_msat, include_mda, include_stepd):
-        use_fulldate = True
-        start_date = "{}-01-01".format(self.start_year)  # Day 1 of simulation
-        date_format = "%Y-%m-%d"
-        sim_duration = 365 * self.sim_length_years  # length in days
-        self.cb.params['Simulation_Duration'] = sim_duration
-
-        # Prevent DTK from spitting out too many messages
-        self.cb.params['logLevel_JsonConfigurable'] = "WARNING"
-        self.cb.params['Disable_IP_Whitelist'] = 1
-
-        # Choose to split drug campaign events in two
-        split_drug_campaign = True
-
-        # Event information files
-        itn_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_itn_events.csv"
-        irs_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_irs_events.csv"
-        msat_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_msat_events.csv"
-        mda_event_file = "C:/Users/jsuresh/OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_mda_events.csv"
-        healthseek_event_file = "C:/Users/jsuresh//OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_healthseek_events.csv"
-        stepd_event_file = "C:/Users/jsuresh//OneDrive - IDMOD/Code/zambia/cbever/gridded/chiyabi/grid_chiyabi_hfca_stepd_events.csv"
-
-        # Import event info
-        itn_events = pd.read_csv(itn_event_file)
-        irs_events = pd.read_csv(irs_event_file)
-        msat_events = pd.read_csv(msat_event_file)
-        mda_events = pd.read_csv(mda_event_file)
-        healthseek_events = pd.read_csv(healthseek_event_file)
-        stepd_events = pd.read_csv(stepd_event_file)
-
-
-        # Compute simulation days relative to start date or use default in file
-        use_fulldate = True #fixme
-        if use_fulldate:
-            itn_events['simday'] = [convert_to_day(x, start_date, date_format) for x in itn_events.fulldate]
-            irs_events['simday'] = [convert_to_day(x, start_date, date_format) for x in irs_events.fulldate]
-            msat_events['simday'] = [convert_to_day(x, start_date, date_format) for x in msat_events.fulldate]
-            mda_events['simday'] = [convert_to_day(x, start_date, date_format) for x in mda_events.fulldate]
-            healthseek_events['simday'] = [convert_to_day(x, start_date, date_format) for x in
-                                           healthseek_events.fulldate]
-            stepd_events['simday'] = [convert_to_day(x, start_date, date_format) for x in stepd_events.fulldate]
-        else:
-            itn_events['simday'] = itn_events.date
-            irs_events['simday'] = irs_events.date
-            msat_events['simday'] = msat_events.date
-            mda_events['simday'] = mda_events.date
-            healthseek_events['simday'] = healthseek_events.date
-            stepd_events['simday'] = stepd_events.date
-
+        itn_events.reset_index(inplace=True)
+        irs_events.reset_index(inplace=True)
+        msat_events.reset_index(inplace=True)
+        mda_events.reset_index(inplace=True)
+        stepd_events.reset_index(inplace=True)
 
         # Get grid cell to node ID lookup table:
         from grid_ids_to_nodes import generate_lookup
@@ -942,12 +689,18 @@ class COMPS_Experiment:
                                    seasonal_dep={'min_cov': float(itn_events['min_season_cov'][itn]), 'max_day': 60},
                                    discard={'halflife1': 260, 'halflife2': 2106,
                                             'fraction1': float(itn_events['fast_fraction'][itn])},
-                                   nodeIDs=[nodeid_lookup[itn_events['grid.cell'][itn]]])
+                                   nodeIDs=[nodeid_lookup[itn_events['grid_cell'][itn]]])
                 # Add birth nets
-                if itn < (len(itn_events) - 1):
+                if itn < (len(itn_events)-1) and (itn_events['grid_cell'][itn+1] == itn_events['grid_cell'][itn]):
                     birth_duration = float(itn_events['simday'][itn + 1] - itn_events['simday'][itn] - 1)
                 else:
                     birth_duration = -1
+
+                # This code only works for non-pixel-specific file format:
+                # if itn < (len(itn_events) - 1):
+                #     birth_duration = float(itn_events['simday'][itn + 1] - itn_events['simday'][itn] - 1)
+                # else:
+                #     birth_duration = -1
 
                 add_ITN_age_season(cb, start=float(itn_events['simday'][itn]),
                                    age_dep={'youth_cov': float(itn_events['age_cov'][itn]), 'youth_min_age': 5,
@@ -958,154 +711,64 @@ class COMPS_Experiment:
                                    discard={'halflife1': 260, 'halflife2': 2106,
                                             'fraction1': float(itn_events['fast_fraction'][itn])},
                                    duration=birth_duration,
-                                   nodeIDs=[nodeid_lookup[itn_events['grid.cell'][itn]]])
+                                   nodeIDs=[nodeid_lookup[itn_events['grid_cell'][itn]]])
 
         if include_irs:
             for irs in range(len(irs_events)):
                 add_IRS(cb, start=float(irs_events['simday'][irs]),
                         coverage_by_ages=[{'coverage': float(irs_events['cov_all'][irs])}],
                         initial_killing=float(irs_events['killing'][irs]), duration=float(irs_events['duration'][irs]),
-                        nodeIDs=[nodeid_lookup[irs_events['grid.cell'][irs]]])
+                        nodeIDs=[nodeid_lookup[irs_events['grid_cell'][irs]]])
 
-        # # Always add baseline health-seeking; provide option on health-seeking step-up
-        # hs = 0
-        # if (len(healthseek_events) > 1) & include_healthseek:
-        #     hs_duration = float(healthseek_events['duration'][hs])
-        # else:
-        #     hs_duration = 40 * 365
-        #
-        # add_health_seeking(cb,
-        #                    start_day=float(healthseek_events['simday'][hs]),
-        #                    targets=[{'trigger': 'NewClinicalCase',
-        #                              'coverage': float(healthseek_events['cov_newclin_youth'][hs]), 'agemin': 0,
-        #                              'agemax': 5,
-        #                              'seek': 1, 'rate': 0.3},
-        #                             {'trigger': 'NewClinicalCase',
-        #                              'coverage': float(healthseek_events['cov_newclin_adult'][hs]), 'agemin': 5,
-        #                              'agemax': 100,
-        #                              'seek': 1,
-        #                              'rate': 0.3},
-        #                             {'trigger': 'NewSevereCase',
-        #                              'coverage': float(healthseek_events['cov_severe_youth'][hs]), 'agemin': 0,
-        #                              'agemax': 5,
-        #                              'seek': 1, 'rate': 0.3},
-        #                             {'trigger': 'NewSevereCase',
-        #                              'coverage': float(healthseek_events['cov_severe_adult'][hs]), 'agemin': 5,
-        #                              'agemax': 100,
-        #                              'seek': 1,
-        #                              'rate': 0.3}],
-        #                    drug=['Artemether', 'Lumefantrine'],
-        #                    dosing='FullTreatmentNewDetectionTech',
-        #                    nodes={"class": "NodeSetAll"},
-        #                    duration=hs_duration)
-
-        if include_healthseek:
-            for hs in range(1, len(healthseek_events)):
-                add_health_seeking(cb,
-                                   start_day=float(healthseek_events['simday'][hs]),
-                                   targets=[{'trigger': 'NewClinicalCase',
-                                             'coverage': float(healthseek_events['cov_newclin_youth'][hs]), 'agemin': 0,
-                                             'agemax': 5,
-                                             'seek': 1, 'rate': 0.3},
-                                            {'trigger': 'NewClinicalCase',
-                                             'coverage': float(healthseek_events['cov_newclin_adult'][hs]), 'agemin': 5,
-                                             'agemax': 100,
-                                             'seek': 1,
-                                             'rate': 0.3},
-                                            {'trigger': 'NewSevereCase',
-                                             'coverage': float(healthseek_events['cov_severe_youth'][hs]), 'agemin': 0,
-                                             'agemax': 5,
-                                             'seek': 1, 'rate': 0.3},
-                                            {'trigger': 'NewSevereCase',
-                                             'coverage': float(healthseek_events['cov_severe_adult'][hs]), 'agemin': 5,
-                                             'agemax': 100,
-                                             'seek': 1,
-                                             'rate': 0.3}],
-                                   drug=['Artemether', 'Lumefantrine'],
-                                   dosing='FullTreatmentNewDetectionTech',
-                                   nodes={"class": "NodeSetNodeList", "Node_List": [nodeid_lookup[healthseek_events['grid.cell'][hs]]]},
-                                   duration=float(healthseek_events['duration'][hs]))
 
         if include_msat:
-            if split_drug_campaign:
-                for msat in range(len(msat_events)):
-                    add_drug_campaign(cb, campaign_type='MSAT', drug_code='AL',
-                                      start_days=[float(msat_events['simday'][msat])],
-                                      coverage=float(msat_events['cov_all'][msat]) / 2, repetitions=1, interval=60,
-                                      dosing='SingleDose',
-                                      drug_ineligibility_duration=30,
-                                      nodes=[nodeid_lookup[msat_events['grid.cell'][msat]]])
-
-                    add_drug_campaign(cb, campaign_type='MSAT', drug_code='AL',
-                                      start_days=[float(msat_events['simday'][msat] + 7)],
-                                      coverage=float(msat_events['cov_all'][msat]) / 2, repetitions=1, interval=60,
-                                      dosing='SingleDose',
-                                      nodes=[nodeid_lookup[msat_events['grid.cell'][msat]]])
-
-            else:
-                for msat in range(len(msat_events)):
+            for msat in range(len(msat_events)):
                     add_drug_campaign(cb, campaign_type='MSAT', drug_code='AL',
                                       start_days=[float(msat_events['simday'][msat])],
                                       coverage=msat_events['cov_all'][msat], repetitions=1, interval=60,
                                       dosing='SingleDose',
-                                      nodes=[nodeid_lookup[msat_events['grid.cell'][msat]]])
+                                      nodes=[nodeid_lookup[msat_events['grid_cell'][msat]]])
 
         if include_mda:
-            if split_drug_campaign:
-                for mda in range(len(mda_events)):
-                    add_drug_campaign(cb, campaign_type='MDA', drug_code='DP',
-                                      start_days=[float(mda_events['simday'][mda])],
-                                      coverage=float(mda_events['cov_all'][mda]) / 2, repetitions=1, interval=60,
-                                      dosing='SingleDose',
-                                      drug_ineligibility_duration=30,
-                                      nodes=[nodeid_lookup[mda_events['grid.cell'][mda]]])
-
-                    add_drug_campaign(cb, campaign_type='MDA', drug_code='DP',
-                                      start_days=[float(mda_events['simday'][mda] + 7)],
-                                      coverage=float(mda_events['cov_all'][mda]) / 2, repetitions=1, interval=60,
-                                      dosing='SingleDose',
-                                      nodes=[nodeid_lookup[mda_events['grid.cell'][mda]]])
-
-            else:
-                for mda in range(len(mda_events)):
+            for mda in range(len(mda_events)):
                     add_drug_campaign(cb, campaign_type='MDA', drug_code='DP',
                                       start_days=[float(mda_events['simday'][mda])],
                                       coverage=float(mda_events['cov_all'][mda]), repetitions=1, interval=60,
                                       dosing='SingleDose',
-                                      nodes=[nodeid_lookup[mda_events['grid.cell'][mda]]])
+                                      nodes=[nodeid_lookup[mda_events['grid_cell'][mda]]])
 
         if include_stepd:
             for sd in range(len(stepd_events)):
+                cov = np.min([1.,float(self.rcd_people_num) / float(pop_lookup[stepd_events['grid_cell'][sd]])])
                 add_drug_campaign(cb, campaign_type='rfMDA', drug_code='AL',
                                   start_days=[float(stepd_events['simday'][sd])],
                                   # coverage=float(stepd_events['coverage'][sd]),
                                   # coverage=float(self.rcd_people_num)/float(self.pop_start),
-                                  coverage=float(self.rcd_people_num) / float(pop_lookup[itn_events['grid.cell'][itn]]),
+                                  coverage=cov,
                                   interval=float(stepd_events['interval'][sd]),
-                                  nodes=[nodeid_lookup[itn_events['grid.cell'][itn]]])
+                                  nodes=[nodeid_lookup[stepd_events['grid_cell'][sd]]])
 
         return {"ITNs": include_itn,
                 "IRS": include_irs,
-                "Healthseek": include_healthseek,
                 "MSAT": include_msat,
                 "MDA": include_mda,
                 "StepD": include_stepd}
 
-    def file_setup(self,run_mode,generate_immunity_file=True,generate_demographics_file=True,generate_climate_files=True,generate_migration_files=True):
-        self.run_mode = run_mode
-        if self.run_mode == "SingleNode": self.singlenode_setup()
-        elif self.run_mode == "MultiNode": self.multinode_setup()
+    def file_setup(self,generate_immunity_file=True,generate_demographics_file=True,generate_climate_files=True,generate_migration_files=True):
+        # self.multinode_setup()
 
         if generate_demographics_file:
             print "Generating demographics file..."
-            if self.run_mode == "SingleNode": self.gen_demo_file_single_node()
-            elif self.run_mode == "MultiNode": self.gen_demo_file(self.grid_pop_csv_file)
+            self.gen_demo_file(self.grid_pop_csv_file)
 
         if generate_immunity_file:
             print "Generating immunity files..."
-            self.get_immunity_file_from_single_node()
+            if self.immunity_mode == "uniform":
+                self.get_immunity_file_from_single_node()
+            elif self.immunity_mode == "milen":
+                self.gen_immunity_file_from_milen_clusters()
 
-        if self.run_mode == "MultiNode" and generate_migration_files:
+        if generate_migration_files:
             print "Generating migration files..."
             self.gen_migration_files()
 
@@ -1113,27 +776,24 @@ class COMPS_Experiment:
             print "Generating climate files..."
             SetupParser.init()
             cg = ClimateGenerator(self.demo_fp_full,
-                                  self.base + '../logs/climate_wo_{}.json'.format(self.run_mode),
-                                  self.base + 'Climate/{}/'.format(self.run_mode))
-            cg.set_climate_start_year(str(int(self.start_year)))
-            cl_num_years = np.min([2015 - self.start_year, self.sim_length_years])
-            cg.set_climate_num_years(str(int(cl_num_years)))
+                                  self.exp_base + 'Logs/climate_wo.json',
+                                  self.exp_base + 'Climate/',
+                                  start_year = str(self.start_year),
+                                  num_years = str(np.min([2016 - self.start_year, self.sim_length_years]))
+                                  )
+
             cg.generate_climate_files()
 
-    def add_run_mode_tag(self,cb,run_mode):
-        return {"run_mode": run_mode}
 
-    def submit_experiment(self,run_mode,num_seeds=1,intervention_sweep=False,larval_sweep=False,migration_sweep=False,vector_migration_sweep=False,
-                          custom_name=None):
-        self.run_mode = run_mode
-        if self.run_mode == "SingleNode": self.singlenode_setup()
-        elif self.run_mode == "MultiNode": self.multinode_setup()
+
+    def submit_experiment(self,num_seeds=1,intervention_sweep=False,larval_sweep=False,migration_sweep=False,vector_migration_sweep=False,
+                          simple_intervention_sweep=True,custom_name=None):
+
+        # Implement the actual (not dummy) baseline healthseeking
+        self.implement_baseline_healthseeking()
+
 
         modlists = []
-
-        # Add run_mode tag:
-        new_modlist = [ModFn(self.add_run_mode_tag, run_mode) for run_mode in [self.run_mode]]
-        modlists.append(new_modlist)
 
         if num_seeds > 1:
             new_modlist = [ModFn(DTKConfigBuilder.set_param, 'Run_Number', seed) for seed in range(num_seeds)]
@@ -1146,52 +806,49 @@ class COMPS_Experiment:
             modlists.append(new_modlist)
 
         if migration_sweep:
-            new_modlist = [ModFn(DTKConfigBuilder.set_param, 'x_Local_Migration', x) for x in [0.1, 1]]
+            new_modlist = [ModFn(DTKConfigBuilder.set_param, 'x_Local_Migration', x) for x in [0.5,1,2,5]]
             modlists.append(new_modlist)
 
         if vector_migration_sweep:
             new_modlist = [ModFn(self.vector_migration_sweeper, vector_migration_on) for vector_migration_on in [True, False]]
             modlists.append(new_modlist)
 
-        if self.intervention_on:
-            if intervention_sweep:
-                # Interventions to turn on or off
-                include_itn_list = [True, False]
-                include_irs_list = [True, False]
-                include_healthseek_list = [True]
-                include_mda_list = [True]
-                include_msat_list = [True]
-                include_stepd_list = [True]
+        if simple_intervention_sweep:
+            new_modlist = [
+                ModFn(self.implement_interventions, True, False, False, False, False),
+                ModFn(self.implement_interventions, False, True, False, False, False),
+                ModFn(self.implement_interventions, False, False, True, False, False),
+                ModFn(self.implement_interventions, False, False, False, True, False),
+                ModFn(self.implement_interventions, False, False, False, False, True),
+                ModFn(self.implement_interventions, True, True, True, True, True)
+            ]
+            modlists.append(new_modlist)
+        else:
+            new_modlist = [ModFn(self.implement_interventions, True, True, True, True, True)]
+            modlists.append(new_modlist)
 
-                if self.gridded_interventions:
-                    new_modlist = [
-                        ModFn(self.implement_gridded_chiyabi_interventions, use_itn, use_irs, use_healthseek, use_msat, use_mda, use_stepd)
-                        for use_itn in include_itn_list
-                        for use_irs in include_irs_list
-                        for use_mda in include_mda_list
-                        for use_msat in include_msat_list
-                        for use_healthseek in include_healthseek_list
-                        for use_stepd in include_stepd_list
-                        ]
-                else:
-                    new_modlist = [ModFn(self.implement_uniform_chiyabi_interventions, use_itn, use_irs, use_healthseek, use_msat, use_mda, use_stepd)
-                                         for use_itn in include_itn_list
-                                         for use_irs in include_irs_list
-                                         for use_mda in include_mda_list
-                                         for use_msat in include_msat_list
-                                         for use_healthseek in include_healthseek_list
-                                         for use_stepd in include_stepd_list
-                                         ]
 
-                modlists.append(new_modlist)
 
-            else:
-                if self.gridded_interventions:
-                    new_modlist = [ModFn(self.implement_gridded_chiyabi_interventions, True, True, True, True, True, True)]
-                else:
-                    new_modlist = [ModFn(self.implement_uniform_chiyabi_interventions, True, True, True, True, True, True)]
-                modlists.append(new_modlist)
-
+        # if intervention_sweep:
+        #     # Interventions to turn on or off
+        #     include_itn_list = [True, False]
+        #     include_irs_list = [True, False]
+        #     include_mda_list = [True, False]
+        #     include_msat_list = [True, False]
+        #     include_stepd_list = [True, False]
+        #
+        #     new_modlist = [
+        #         ModFn(self.implement_interventions, use_itn, use_irs, use_msat, use_mda, use_stepd)
+        #         for use_itn in include_itn_list
+        #         for use_irs in include_irs_list
+        #         for use_mda in include_mda_list
+        #         for use_msat in include_msat_list
+        #         for use_stepd in include_stepd_list
+        #     ]
+        #
+        # else:
+        #     new_modlist = [ModFn(self.implement_interventions, True, True, True, True, True)]
+        # modlists.append(new_modlist)
 
 
         builder = ModBuilder.from_combos(*modlists)
