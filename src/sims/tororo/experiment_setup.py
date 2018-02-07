@@ -7,8 +7,8 @@ import json
 import pandas as pd
 import numpy as np
 
-import matplotlib
-matplotlib.use('Agg')
+# import matplotlib
+# matplotlib.use('')
 
 from dtk.tools.climate.ClimateGenerator import ClimateGenerator
 from dtk.tools.migration.MigrationGenerator import MigrationGenerator
@@ -393,8 +393,8 @@ class COMPS_Experiment:
         demo_dict["Metadata"]["Catchment"] = self.catch
 
         # Add larval habitat parameters to demographics file:
-        # if self.larval_params_mode != "calibrate":
-        demo_dict = self.add_larval_habitats_to_demo(demo_dict, larval_params=larval_params)
+        if self.larval_params_mode != "calibrate":
+            demo_dict = self.add_larval_habitats_to_demo(demo_dict, larval_params=larval_params)
 
         if larval_params:
             temp_h = larval_params['temp_h']
@@ -411,7 +411,7 @@ class COMPS_Experiment:
     #################################################################################################
     # LARVAL PARAMETER-RELATED FUNCTIONS:
     def add_larval_habitats_to_demo(self, demo_dict, nodeset='all', larval_params=None):
-        # Add larval habitat multipliers to demographics file
+        # Add larval habitat parameters (some of which scale with population) to demographics file
 
         def add_larval_habitat_to_node(node_item, const_h,temp_h,water_h,linear_h):
             calib_single_node_pop = 1000  # for Zambia
@@ -424,7 +424,7 @@ class COMPS_Experiment:
 
             temp_multiplier = temp_h * pop_multiplier
             linear_multiplier = linear_h * pop_multiplier
-            const_multiplier = const_h * pop_multiplier # NOTE: Pre 1/24/2018, this was not set to scale with population
+            const_multiplier = const_h # NOTE: No pop multiplier
             water_multiplier = water_h * pop_multiplier
 
             node_item['NodeAttributes']['LarvalHabitatMultiplier'] = {
@@ -483,11 +483,6 @@ class COMPS_Experiment:
 
                 add_larval_habitat_to_node(node_item,const_h,temp_h,water_h,linear_h)
 
-
-        elif self.larval_params_mode=='calibrate':
-            for node_item in demo_dict['Nodes']:
-                add_larval_habitat_to_node(node_item,1,1,1,1)
-
         return demo_dict
 
     def larval_param_sweeper(self,cb,temp_h,linear_h):
@@ -533,7 +528,8 @@ class COMPS_Experiment:
 
         # Generate migration header:
         MigrationGenerator.save_migration_header(self.demo_fp_full,
-                                                 self.exp_base +'Migration/local_migration.bin.json')
+                                                 outfilename=self.exp_base +'Migration/local_migration.bin.json'
+                                                 )
 
     def vector_migration_sweeper(self, vector_migration_on):
         if vector_migration_on:
@@ -815,12 +811,11 @@ class COMPS_Experiment:
         if generate_climate_files:
             print("Generating climate files...")
             SetupParser.init()
-            [cg_start_year,cg_duration] = safe_start_year_duration_for_climate_generator(self.start_year,self.sim_length_years)
             cg = ClimateGenerator(self.demo_fp_full,
                                   self.exp_base + 'Logs/climate_wo.json',
                                   self.exp_base + 'Climate/',
-                                  start_year = str(cg_start_year),
-                                  num_years = str(cg_duration)
+                                  start_year = str(self.start_year),
+                                  num_years = str(np.min([2016 - self.start_year, self.sim_length_years]))
                                   )
 
             cg.generate_climate_files()

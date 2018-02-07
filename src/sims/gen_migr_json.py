@@ -89,7 +89,7 @@ def compute_migr_dict(df, grav_params, d_thresh=-1, return_prob_sums=False):
                 d = vincenty((r1['lat'],r1['long']),(r2['lat'],r2['long'])).km
                 migr[r1['node_id']][r2['node_id']] = compute_migr_prob(grav_params,r1['pop'],r2['pop'],d)
 
-        p_sum[jj] = np.sum(migr[r1['node_id']].values())
+        p_sum[jj] = np.sum(list(migr[r1['node_id']].values()))
         jj += 1
 
     if return_prob_sums:

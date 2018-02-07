@@ -27,6 +27,6 @@ def convert_to_date_365(convert_day, ref_date, date_format = "%Y-%m-%d"):
     # Converts day of simulation starting from reference date into date
     # Assumes a calendar year has exactly 365 days
 
-    convert_year = (int(convert_day)/365) + datetime.strptime(ref_date, date_format).year
-    convert_day = convert_day-(int(convert_day)/365)*365
+    convert_year = int(int(convert_day)/365) + datetime.strptime(ref_date, date_format).year
+    convert_day = convert_day-int(int(convert_day)/365)*365
     return datetime.strftime(datetime(convert_year, 1, 1) + timedelta(convert_day - 1), date_format)

@@ -98,6 +98,16 @@ def search_dataframe(df, search_col, search_vals, return_col):
     return np.array(search_df[return_col])
 
 
+def get_RDT_ref_data_for_grid_cells(grid_cells, format="combine", base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+    # Return grid_cell ID, date, population, and prevalence for all grid cells
+    # If format == "combine", return these all as a single list
+
+    # Open relevant file:
+    prev_df = pd.read_csv(base + "data/prevalence/2018-01-23/raw/grid_prevalence_with_dates.csv")
+
+    in_cells = np.in1d(prev_df["grid_cell"],grid_cells)
+    return prev_df[in_cells]
+
 #########################################################################################
 # Functions relating to connections between grid cells and Milen's clusters:
 
@@ -736,14 +746,14 @@ def compute_round_date(round,cell_ids,weight="covpop",start_date="2007-01-01",ba
         pop_df = pop_df[pop_df["round"]==round]
 
         df = df.merge(pop_df,how="left",left_on="cell_ids",right_on="grid_cell")
-        weighted_round_date = np.int32((df["N"]*df["sim_day"]).sum()/df["N"].sum())
+        weighted_round_date = int((df["N"]*df["sim_day"]).sum()/df["N"].sum())
 
 
     elif weight == "maxpop":
         pop_df = pd.read_csv(base + "data/gridded_pop/cleaned/all_max_pop.csv")
 
         df = df.merge(pop_df, how="left", left_on="cell_ids", right_on="node_label")
-        weighted_round_date = np.int32((df["pop"] * df["sim_day"]).sum() / df["pop"].sum())
+        weighted_round_date = int((df["pop"] * df["sim_day"]).sum() / df["pop"].sum())
 
     print("Weighted round date: ",convert_to_date_365(weighted_round_date,start_date))
     return weighted_round_date
@@ -857,12 +867,28 @@ def find_cells_for_this_milen_cluster(mc_name, base='C:/Users/jsuresh/OneDrive -
 
 
 
+############################################################################################################
+# Calibration/Analyzer helper functions
+
+# def load_
 
 
 
+def safe_start_year_duration_for_climate_generator(start_year,sim_duration,fixed_year=2014):
+    # Return a "safe" start year for the climate generator.
+    # Conditions: start year must be >= 2001, and need to make sure that the climate for the fixed_year is correct
+
+    cg_duration = np.min([sim_duration,10])
 
 
-
+    if start_year > 2001:
+        return [start_year,cg_duration]
+    elif (fixed_year-start_year) <= cg_duration:
+        return [start_year, cg_duration]
+    else:
+        for i in np.flip(np.arange(11),axis=0):
+            if (fixed_year-start_year) % i == 0:
+                return [fixed_year-i,i]
 
 
 

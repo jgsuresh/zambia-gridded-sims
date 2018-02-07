@@ -24,11 +24,15 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         self.base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
 
     def filter(self, sim_metadata):
-        return True
+        if sim_metadata["sim_id"] == "08dff6bf-690b-e811-9415-f0921c16b9e5":
+            return True
+        else:
+            return False
 
     def apply(self, parser):
         exp_name = parser.experiment.exp_name
-        self.catch[parser.sim_id] = exp_name.split('_')[0] # Assumes the experiment name is "CATCHNAME_full"
+        # self.catch[parser.sim_id] = exp_name.split('_')[0] # Assumes the experiment name is "CATCHNAME_full"
+        self.catch[parser.sim_id] = "Munyumbwe"
 
         pop_data = parser.raw_data[self.filenames[0]]
         prev_data = parser.raw_data[self.filenames[1]]
@@ -60,7 +64,8 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         import seaborn as sns
         sns.set_style("darkgrid")
 
-        start_date = "2007-01-01"  # Day 1 of simulation
+        # start_date = "2007-01-01"  # Day 1 of simulation
+        start_date = "1994-01-01"
         date_format = "%Y-%m-%d"
 
         foo = mdates.strpdate2num(date_format)
@@ -87,7 +92,9 @@ class RDTPrevAnalyzer(BaseAnalyzer):
                 lbl = None
             plt.plot_date(daydates_mdates, self.RDT_prev_aggr[sim_id],fmt='-',color='black',label=lbl,lw=1.2,zorder=10)
 
-        catch = self.catch.itervalues().next()
+        # catch = self.catch.values().next()
+        catch = list(self.catch.values())[0]
+        catch = catch.lower()
 
         catch_cell_ids = find_cells_for_this_catchment(catch)
 
@@ -112,7 +119,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         # rd_day_sim = np.zeros(10)
         round_dates = list(global_round_dates)
         for rd in range(1,11):
-            rd_day_sim = compute_round_date(rd,catch_cell_ids)
+            rd_day_sim = compute_round_date(rd,catch_cell_ids,start_date=start_date)
 
             if rd_day_sim != -1:
                 # Then computing round date failed.  Default to global round date in this case:
@@ -177,14 +184,17 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         plt.xlim([foo("2010-01-01"), foo("2019-01-01")])
 
         plt.tight_layout()
-        # plt.show()
-        plt.savefig(self.base + "data/figs/{}_prev.png".format(catch))
+        plt.show()
+        # plt.savefig(self.base + "data/figs/{}_prev.png".format(catch))
 
 
 if __name__=="__main__":
     SetupParser.init('HPC')
 
     am = AnalyzeManager()
+
+    # Calibration experiments:
+    am.add_experiment(retrieve_experiment("f3a0f463-690b-e811-9415-f0921c16b9e5"))
 
     # hand-fudged Milen habitat params
     # am.add_experiment(retrieve_experiment("4766b178-f5f4-e711-9414-f0921c16b9e5")) #bbondo
@@ -195,7 +205,7 @@ if __name__=="__main__":
     # am.add_experiment(retrieve_experiment("4f045b1b-fbf4-e711-9414-f0921c16b9e5"))  # munyumbwe
     # am.add_experiment(retrieve_experiment("542b05fe-fbf4-e711-9414-f0921c16b9e5"))  # nyanga chaamwe (x0.5)
     # am.add_experiment(retrieve_experiment("b546a866-04f5-e711-9414-f0921c16b9e5"))  # nyanga chaamwe (x0.25)
-    am.add_experiment(retrieve_experiment("a938d951-06f5-e711-9414-f0921c16b9e5"))  # nyanga chaamwe (x0.15)
+    # am.add_experiment(retrieve_experiment("a938d951-06f5-e711-9414-f0921c16b9e5"))  # nyanga chaamwe (x0.15)
     # am.add_experiment(retrieve_experiment("47bc7d56-fcf4-e711-9414-f0921c16b9e5"))  # sinafala
     # am.add_experiment(retrieve_experiment("cd2853cf-fcf4-e711-9414-f0921c16b9e5"))  # sinamalima
 
