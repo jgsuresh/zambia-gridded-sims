@@ -29,7 +29,8 @@ import numpy as np
 
 def get_catch_list():
     # grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-21/cleaned/grid_lookup_caps.csv')
-    grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_lookup.csv')
+    # grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_lookup.csv')
+    grid_lookup = pd.read_csv(base + 'data/mozambique/grid_lookup.csv')
     # Get a list of all catchments:
     return grid_lookup['catchment'].unique()
 
@@ -83,20 +84,26 @@ def save_prev_by_catch(full_df, weighting='population'):
     prev_df = pd.DataFrame(prev_dict)
 
     if weighting == 'population':
-        prev_df.to_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_pop_weighted.csv')
+        # prev_df.to_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_pop_weighted.csv')
+        prev_df.to_csv(base + 'data/mozambique/cleaned/catch_prevalence_pop_weighted.csv')
     elif weighting == 'MDA_coverage':
-        prev_df.to_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_coverage_weighted.csv')
+        # prev_df.to_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_coverage_weighted.csv')
+        prev_df.to_csv(base + 'data/mozambique/cleaned/catch_prevalence_coverage_weighted.csv')
+
+
 
 if __name__ == "__main__":
     base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
-    grid_prev = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv')
-    grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_lookup.csv')
+    # grid_prev = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv')
+    # grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_lookup.csv')
+    grid_prev = pd.read_csv(base + 'data/mozambique/grid_prevalence_with_dates.csv')
+    grid_lookup = pd.read_csv(base + 'data/mozambique/grid_lookup.csv')
 
     # Merge so each grid cell also knows its own catchment
     full_df = grid_prev.merge(grid_lookup,how='left',left_on='grid_cell',right_on='grid_cell')
 
     # Merge again so each grid cell also knows its own maximum population
-    grid_maxpop = pd.read_csv(base + 'data/gridded_pop/cleaned/all_max_pop.csv')
+    grid_maxpop = pd.read_csv(base + 'data/mozambique/grid_population.csv')
     full_df = full_df.merge(grid_maxpop,how='left',left_on='grid_cell',right_on='node_label')
 
     # write_new_lookup_with_caps_names(grid_prev)

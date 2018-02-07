@@ -9,14 +9,18 @@ from relative_time import *
 
 
 
-def find_cells_for_this_catchment(catch, base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+def find_cells_for_this_catchment(catch,
+                                  base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/',
+                                  path_from_base='data/interventions/kariba/2017-11-27/raw/grid_lookup.csv'):
     # Find which grid cells correspond to a given HFCA
-    df = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_lookup.csv')
+    df = pd.read_csv(base + path_from_base)
 
     if catch == 'all':
         return np.array(df['grid_cell'])
     else:
-        df_catch = df[df['catchment'] == catch.lower()]
+        df_catch = df[df['catchment'] == catch]
+        # df_catch = df[np.logical_or(df['catchment'] == catch.capitalize(),
+        #                             df['catchment'] == catch.lower())]
         return np.array(df_catch['grid_cell'])
 
 
@@ -98,12 +102,15 @@ def search_dataframe(df, search_col, search_vals, return_col):
     return np.array(search_df[return_col])
 
 
-def get_RDT_ref_data_for_grid_cells(grid_cells, format="combine", base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+def get_RDT_ref_data_for_grid_cells(grid_cells,
+                                    format="combine",
+                                    base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/',
+                                    path_from_base="data/prevalence/2018-01-23/raw/grid_prevalence_with_dates.csv"):
     # Return grid_cell ID, date, population, and prevalence for all grid cells
     # If format == "combine", return these all as a single list
 
     # Open relevant file:
-    prev_df = pd.read_csv(base + "data/prevalence/2018-01-23/raw/grid_prevalence_with_dates.csv")
+    prev_df = pd.read_csv(base + path_from_base)
 
     in_cells = np.in1d(prev_df["grid_cell"],grid_cells)
     return prev_df[in_cells]
@@ -716,16 +723,22 @@ HFCA_milen_cluster_lookup = {
 
 ############################################################################################################
 
-def compute_round_date(round,cell_ids,weight="covpop",start_date="2007-01-01",base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+def compute_round_date(round,
+                       cell_ids,
+                       weight="covpop",
+                       start_date="2007-01-01",
+                       base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/',
+                       prev_fn="data/prevalence/2017-12-20/raw/grid_prevalence_with_dates.csv",
+                       pop_fn="data/gridded_pop/cleaned/all_max_pop.csv"):
     # Open Caitlin's file
-    prev_df = pd.read_csv(base + "data/prevalence/2017-12-20/raw/grid_prevalence_with_dates.csv")
+    prev_df = pd.read_csv(base + prev_fn)
     prev_df = prev_df[prev_df['round']==round]
 
     df = pd.DataFrame({
         "cell_ids": cell_ids
     })
 
-    df = df.merge(prev_df,how='left',left_on="cell_ids",right_on="loc.id")
+    df = df.merge(prev_df,how='left',left_on="cell_ids",right_on="grid_cell")
     # Drop NANs (which occur when a given cell doesn't appear in this round)
     df = df.dropna()
 
@@ -734,23 +747,24 @@ def compute_round_date(round,cell_ids,weight="covpop",start_date="2007-01-01",ba
     df['sim_day'] = df.apply(lambda x: convert_to_day_365(x['date'],start_date),axis=1)
 
     # Remove possible outlier dates
-    non_outlier_dates = nonoutlier_mask(df['sim_day'])
-    if np.sum(non_outlier_dates) < 2:
-        return -1
-    else:
-        df = df[non_outlier_dates]
+    # non_outlier_dates = nonoutlier_mask(df['sim_day'])
+    # if np.sum(non_outlier_dates) < 2:
+    #     return -1
+    # else:
+    #     df = df[non_outlier_dates]
 
     # Merge in population information, so that we can weight properly.
     if weight == "covpop":
-        pop_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv")
+        # pop_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv")
+        pop_df = pd.read_csv(base + prev_fn)
         pop_df = pop_df[pop_df["round"]==round]
 
         df = df.merge(pop_df,how="left",left_on="cell_ids",right_on="grid_cell")
-        weighted_round_date = int((df["N"]*df["sim_day"]).sum()/df["N"].sum())
+        weighted_round_date = int((df["N_x"]*df["sim_day"]).sum()/df["N_x"].sum())
 
 
     elif weight == "maxpop":
-        pop_df = pd.read_csv(base + "data/gridded_pop/cleaned/all_max_pop.csv")
+        pop_df = pd.read_csv(base + pop_fn)
 
         df = df.merge(pop_df, how="left", left_on="cell_ids", right_on="node_label")
         weighted_round_date = int((df["pop"] * df["sim_day"]).sum() / df["pop"].sum())
@@ -774,7 +788,14 @@ def nonoutlier_mask(data, m=2.):
 
 ############################################################################################################
 
-def add_cell_intervention_timing_rugs_to_plot(ax,cell_ids,start_date="2007-01-01",base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+def add_cell_intervention_timing_rugs_to_plot(ax,
+                                              cell_ids,
+                                              start_date="2007-01-01",
+                                              base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/',
+                                              irs_relative_path="data/interventions/kariba/2017-11-27/raw/grid_all_irs_events.csv",
+                                              itn_relative_path="data/interventions/kariba/2017-11-27/raw/grid_all_itn_events.csv",
+                                              mda_relative_path="data/interventions/kariba/2017-11-27/raw/grid_all_mda_events.csv",
+                                              ymax=1.0):
     import matplotlib.dates as mdates
     import seaborn as sns
     sns.set_style("darkgrid")
@@ -787,7 +808,7 @@ def add_cell_intervention_timing_rugs_to_plot(ax,cell_ids,start_date="2007-01-01
 
     # Plot vertical lines for different intervention timepoints:
     # IRS:
-    irs_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_irs_events.csv")
+    irs_df = pd.read_csv(base + irs_relative_path)
     irs_df = irs_df[np.in1d(np.array(irs_df["grid_cell"]), cell_ids)]
     print("plotting IRS lines")
     lbl_flag = 0
@@ -797,11 +818,11 @@ def add_cell_intervention_timing_rugs_to_plot(ax,cell_ids,start_date="2007-01-01
             lbl_flag = 1
         else:
             lbl = None
-        ax.axvline(foo(d), c='C0', ymin=0.8, ymax=1.0, lw=0.5, alpha=0.4, label=lbl, zorder=1)
+        ax.axvline(foo(d), c='C0', ymin=ymax*0.8, ymax=ymax, lw=0.5, alpha=0.4, label=lbl, zorder=1)
     print("done plotting IRS lines")
 
     # ITN:
-    itn_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_itn_events.csv")
+    itn_df = pd.read_csv(base + itn_relative_path)
     itn_df = itn_df[np.in1d(np.array(itn_df["grid_cell"]), cell_ids)]
     print("plotting itn lines")
     lbl_flag = 0
@@ -811,11 +832,11 @@ def add_cell_intervention_timing_rugs_to_plot(ax,cell_ids,start_date="2007-01-01
             lbl_flag = 1
         else:
             lbl = None
-        ax.axvline(foo(d), c='C1', ymin=0.5, ymax=0.7, lw=0.5, alpha=0.4, label=lbl, zorder=1)
+        ax.axvline(foo(d), c='C1', ymin=ymax*0.5, ymax=ymax*0.7, lw=0.5, alpha=0.4, label=lbl, zorder=1)
     print("done plotting itn lines")
 
     # MDA:
-    mda_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_mda_events.csv")
+    mda_df = pd.read_csv(base + mda_relative_path)
     mda_df = mda_df[np.in1d(np.array(mda_df["grid_cell"]), cell_ids)]
     print("plotting mda lines")
     lbl_flag = 0
@@ -825,36 +846,36 @@ def add_cell_intervention_timing_rugs_to_plot(ax,cell_ids,start_date="2007-01-01
             lbl_flag = 1
         else:
             lbl = None
-        ax.axvline(foo(d), c='C2', ymin=0, ymax=0.2, lw=0.5, alpha=0.2, label=lbl, zorder=2)
+        ax.axvline(foo(d), c='C2', ymin=0, ymax=ymax*0.2, lw=0.5, alpha=0.2, label=lbl, zorder=2)
     print("done plotting mda lines")
 
-    # MSAT:
-    msat_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_msat_events.csv")
-    msat_df = msat_df[np.in1d(np.array(msat_df["grid_cell"]), cell_ids)]
-    print ("plotting msat lines")
-    lbl_flag = 0
-    for d in msat_df['fulldate']:
-        if lbl_flag == 0:
-            lbl = "MSAT events"
-            lbl_flag = 1
-        else:
-            lbl = None
-        ax.axvline(foo(d), c='C3', ymin=0, ymax=0.2, lw=0.5, alpha=0.2, label=lbl, zorder=2)
-    print("done plotting msat lines")
+    # # MSAT:
+    # msat_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_msat_events.csv")
+    # msat_df = msat_df[np.in1d(np.array(msat_df["grid_cell"]), cell_ids)]
+    # print ("plotting msat lines")
+    # lbl_flag = 0
+    # for d in msat_df['fulldate']:
+    #     if lbl_flag == 0:
+    #         lbl = "MSAT events"
+    #         lbl_flag = 1
+    #     else:
+    #         lbl = None
+    #     ax.axvline(foo(d), c='C3', ymin=0, ymax=0.2, lw=0.5, alpha=0.2, label=lbl, zorder=2)
+    # print("done plotting msat lines")
 
-    # MSAT:
-    stepd_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_stepd_events.csv")
-    stepd_df = stepd_df[np.in1d(np.array(stepd_df["grid_cell"]), cell_ids)]
-    print ("plotting stepd lines")
-    lbl_flag = 0
-    for d in stepd_df['fulldate']:
-        if lbl_flag == 0:
-            lbl = "CHWs added"
-            lbl_flag = 1
-        else:
-            lbl = None
-        ax.axvline(foo(d), c='C4', ymin=0, ymax=1.0, lw=1.0, label=lbl, linestyle='dashed', zorder=2)
-    print("done plotting stepd lines")
+    # STEPD:
+    # stepd_df = pd.read_csv(base + "data/interventions/kariba/2017-11-27/raw/grid_all_stepd_events.csv")
+    # stepd_df = stepd_df[np.in1d(np.array(stepd_df["grid_cell"]), cell_ids)]
+    # print ("plotting stepd lines")
+    # lbl_flag = 0
+    # for d in stepd_df['fulldate']:
+    #     if lbl_flag == 0:
+    #         lbl = "CHWs added"
+    #         lbl_flag = 1
+    #     else:
+    #         lbl = None
+    #     ax.axvline(foo(d), c='C4', ymin=0, ymax=1.0, lw=1.0, label=lbl, linestyle='dashed', zorder=2)
+    # print("done plotting stepd lines")
 
 
 
@@ -894,4 +915,6 @@ def safe_start_year_duration_for_climate_generator(start_year,sim_duration,fixed
 
 
 
+############################################################################################################
+# Mozambique calibration:
 

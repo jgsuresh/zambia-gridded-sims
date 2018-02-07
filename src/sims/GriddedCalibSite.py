@@ -1,6 +1,6 @@
 from calibtool.CalibSite import CalibSite
 from GriddedRDTLikelihoodAnalyzer import GriddedRDTLikelihoodAnalyzer
-from CalibTestAnalyzer import CalibTestAnalyzer
+from CalibMozambiqueAnalyzer import CalibMozambiqueAnalyzer
 
 import os
 import pandas as pd
@@ -19,7 +19,8 @@ class GriddedCalibSite(CalibSite):
 
     def get_analyzers(self):
         # return GriddedRDTLikelihoodAnalyzer(self),
-        return CalibTestAnalyzer(self),
+        # return CalibTestAnalyzer(self),
+        return CalibMozambiqueAnalyzer(self),
 
     # def _load_RDT_prev_data(self, reference_csv):
     #     reference_data_df = pd.read_csv(reference_csv)

@@ -29,7 +29,6 @@ from relative_time import *
 from gridded_sim_general import *
 from grid_ids_to_nodes import generate_lookup
 from gen_migr_json import gen_gravity_links_json, save_link_rates_to_txt
-from gridded_sim_general import *
 
 
 
@@ -276,13 +275,13 @@ class COMPS_Experiment:
                                      'coverage': 0.1,
                                      'agemin': 0,
                                      'agemax': 5,
-                                     'seek': 1, 'rate': 0.3},
+                                     'seek': 1, 'rate': 0.5},
                                     {'trigger': 'NewSevereCase',
                                      'coverage': 0.1,
                                      'agemin': 5,
                                      'agemax': 100,
                                      'seek': 1,
-                                     'rate': 0.3}],
+                                     'rate': 0.5}],
                            drug=['Artemether', 'Lumefantrine'],
                            dosing='FullTreatmentNewDetectionTech',
                            nodes={"class": "NodeSetAll"},
@@ -315,7 +314,7 @@ class COMPS_Experiment:
         nodeid_lookup,pop_lookup = generate_lookup(self.demo_fp_full)
 
         # Restrict to catchment of interest
-        catch_cells = find_cells_for_this_catchment(self.catch)
+        catch_cells = find_cells_for_this_catchment(self.catch, path_from_base="data/mozambique/grid_lookup.csv")
         healthseek_events = healthseek_events[np.in1d(healthseek_events['grid_cell'],catch_cells)]
         healthseek_events.reset_index(inplace=True)
 
@@ -336,12 +335,12 @@ class COMPS_Experiment:
                                         {'trigger': 'NewSevereCase',
                                          'coverage': float(healthseek_events['cov_severe_youth'][hs]), 'agemin': 0,
                                          'agemax': 5,
-                                         'seek': 1, 'rate': 0.3},
+                                         'seek': 1, 'rate': 0.5},
                                         {'trigger': 'NewSevereCase',
                                          'coverage': float(healthseek_events['cov_severe_adult'][hs]), 'agemin': 5,
                                          'agemax': 100,
                                          'seek': 1,
-                                         'rate': 0.3}],
+                                         'rate': 0.5}],
                                drug=['Artemether', 'Lumefantrine'],
                                dosing='FullTreatmentNewDetectionTech',
                                nodes={"class": "NodeSetNodeList", "Node_List": node_list},
@@ -362,11 +361,17 @@ class COMPS_Experiment:
         #######################################################################################################
         # CLIMATE-RELATED PARAMETERS:
         #######################################################################################################
+        # self.cb.update_params({
+        #     'Air_Temperature_Filename': "Climate/Zambia_30arcsec_air_temperature_daily.bin",
+        #     'Land_Temperature_Filename': "Climate/Zambia_30arcsec_air_temperature_daily.bin",
+        #     'Rainfall_Filename': "Climate/Zambia_30arcsec_rainfall_daily.bin",
+        #     'Relative_Humidity_Filename': "Climate/Zambia_30arcsec_relative_humidity_daily.bin"
+        # })
         self.cb.update_params({
-            'Air_Temperature_Filename': "Climate/Zambia_30arcsec_air_temperature_daily.bin",
-            'Land_Temperature_Filename': "Climate/Zambia_30arcsec_air_temperature_daily.bin",
-            'Rainfall_Filename': "Climate/Zambia_30arcsec_rainfall_daily.bin",
-            'Relative_Humidity_Filename': "Climate/Zambia_30arcsec_relative_humidity_daily.bin"
+            'Air_Temperature_Filename': "Climate/Mozambique_30arcsec_air_temperature_daily.bin",
+            'Land_Temperature_Filename': "Climate/Mozambique_30arcsec_air_temperature_daily.bin",
+            'Rainfall_Filename': "Climate/Mozambique_30arcsec_rainfall_daily.bin",
+            'Relative_Humidity_Filename': "Climate/Mozambique_30arcsec_relative_humidity_daily.bin"
         })
 
         #######################################################################################################
@@ -444,7 +449,7 @@ class COMPS_Experiment:
             # Load pop csv file to get grid cell numbers:
             # pop_df = pd.read_csv(self.grid_pop_csv_file)
             # grid_cells = np.array(pop_df['node_label'])
-            grid_cells = find_cells_for_this_catchment(self.catch)
+            catch_cells = find_cells_for_this_catchment(self.catch, path_from_base="data/mozambique/grid_lookup.csv")
 
             # From those grid cells, and the Milen-clusters they correspond to, get best-fit larval habitat parameters
             arab_params,funest_params = find_milen_larval_param_fit_for_grid_cells(grid_cells,fudge_milen_habitats=self.fudge_milen_habitats)
@@ -699,12 +704,12 @@ class COMPS_Experiment:
         stepd_events['simday'] = [convert_to_day(x, start_date, date_format) for x in stepd_events.fulldate]
 
         # Restrict to catchment of interest
-        catch_cells = find_cells_for_this_catchment(self.catch)
+        catch_cells = find_cells_for_this_catchment(self.catch,path_from_base="data/mozambique/grid_lookup.csv")
         itn_events = itn_events[np.in1d(itn_events['grid_cell'], catch_cells)]
         irs_events = irs_events[np.in1d(irs_events['grid_cell'], catch_cells)]
-        msat_events = msat_events[np.in1d(msat_events['grid_cell'], catch_cells)]
-        mda_events = mda_events[np.in1d(mda_events['grid_cell'], catch_cells)]
-        stepd_events = stepd_events[np.in1d(stepd_events['grid_cell'], catch_cells)]
+        if include_msat: msat_events = msat_events[np.in1d(msat_events['grid_cell'], catch_cells)]
+        if include_mda: mda_events = mda_events[np.in1d(mda_events['grid_cell'], catch_cells)]
+        if include_stepd: stepd_events = stepd_events[np.in1d(stepd_events['grid_cell'], catch_cells)]
 
         itn_events.reset_index(inplace=True)
         irs_events.reset_index(inplace=True)
@@ -726,7 +731,7 @@ class COMPS_Experiment:
                                             'youth_max_age': 20},
                                    coverage_all=float(itn_events['cov_all'][itn]),
                                    as_birth=False,
-                                   seasonal_dep={'min_cov': float(itn_events['min_season_cov'][itn]), 'max_day': 60},
+                                   seasonal_dep={'min_cov': float(itn_events['min_season_cov'][itn]), 'max_day': 1},
                                    discard={'halflife1': 260, 'halflife2': 2106,
                                             'fraction1': float(itn_events['fast_fraction'][itn])},
                                    nodeIDs=[nodeid_lookup[itn_events['grid_cell'][itn]]])
@@ -820,8 +825,8 @@ class COMPS_Experiment:
                                   self.exp_base + 'Logs/climate_wo.json',
                                   self.exp_base + 'Climate/',
                                   start_year = str(cg_start_year),
-                                  num_years = str(cg_duration)
-                                  )
+                                  num_years = str(cg_duration),
+                                  climate_project = "IDM-Mozambique")
 
             cg.generate_climate_files()
 
@@ -908,5 +913,6 @@ class COMPS_Experiment:
     ################################################################################################################
     def return_cb_for_calibration(self):
         self.implement_baseline_healthseeking()
-        self.implement_interventions(self.cb,True, True, True, True, True)
+        # self.implement_interventions(self.cb,True, True, True, True, True)
+        self.implement_interventions(self.cb, True, True, False, True, False)
         return self.cb

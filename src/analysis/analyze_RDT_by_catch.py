@@ -24,10 +24,11 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         self.base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
 
     def filter(self, sim_metadata):
-        if sim_metadata["sim_id"] == "08dff6bf-690b-e811-9415-f0921c16b9e5":
-            return True
-        else:
-            return False
+        return True
+        # if sim_metadata["sim_id"] == "08dff6bf-690b-e811-9415-f0921c16b9e5":
+        #     return True
+        # else:
+        #     return False
 
     def apply(self, parser):
         exp_name = parser.experiment.exp_name
@@ -194,7 +195,7 @@ if __name__=="__main__":
     am = AnalyzeManager()
 
     # Calibration experiments:
-    am.add_experiment(retrieve_experiment("f3a0f463-690b-e811-9415-f0921c16b9e5"))
+    am.add_experiment(retrieve_experiment("66f05adf-c10b-e811-9415-f0921c16b9e5"))
 
     # hand-fudged Milen habitat params
     # am.add_experiment(retrieve_experiment("4766b178-f5f4-e711-9414-f0921c16b9e5")) #bbondo
