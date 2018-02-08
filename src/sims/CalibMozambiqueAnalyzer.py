@@ -107,8 +107,8 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
 
         # Add the simulation prevalence values to the comparison dataframe
         # prev_comparison_df["prev_sim"] = pd.Series(prev_sim,index=prev_comparison_df.index)
-        # col_name = "prev_sim_sample{}_run{}".format(sample_index,run_number)
-        col_name = "prev_sim_sample{}".format(sample_index)
+        col_name = "prev_sim_sample{}_run{}".format(sample_index,run_number)
+        # col_name = "prev_sim_sample{}".format(sample_index)
         prev_comparison_df[col_name] = pd.Series(prev_sim, index=prev_comparison_df.index)
 
         prev_comparison_df.sample = sample_index
@@ -140,7 +140,7 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         """
         # selected = [p.selected_data[id(self)] for p in parsers.values() if id(self) in p.selected_data]
 
-        self.n_samples = len(parsers)
+
         # Merge all of the dataframes together:
 
         for sim_id, parser in parsers.items():
@@ -151,6 +151,27 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
                                   right_on=['grid_cell', 'date', 'N', 'prev'])
             else:
                 data = parser.prev_comparison_df.copy()
+
+        # Now combine by run numbers:
+        # First find what the maximum run number is:
+        for i in range(1,100):
+            if "prev_sim_sample0_run{}".format(i) in data:
+                run_number_max = i
+            else:
+                break
+
+        self.n_samples = len(parsers)/run_number_max
+
+        # Now loop over these, and average their results
+        for j in range(self.n_samples):
+            hold = data['prev_sim_sample{}_run1'.format(j)]
+            if run_number_max == 1:
+                for i in range(2,run_number_max):
+                    hold += data['prev_sim_sample{}_run{}'.format(j,i)]
+
+            data['prev_sim_sample{}'.format(j)] = pd.Series(np.array(hold)/run_number_max,index=data.index)
+
+
 
         sample_col_list = ["prev_sim_sample{}".format(sample_ind) for sample_ind in range(self.n_samples)]
         other_col_list = ["grid_cell","N","date","prev"]

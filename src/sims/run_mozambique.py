@@ -32,7 +32,7 @@ catch = "Motaze"
 
 # ===================================================================================
 
-exp_name = '{}_calibtest'.format(catch)
+exp_name = '{}_seeds'.format(catch)
 
 gravity_migr_params = np.array([7.50395776e-06, 9.65648371e-01, 9.65648371e-01, -1.10305489e+00])
 
@@ -46,6 +46,13 @@ irs_fn = base + 'data/mozambique/grid_all_irs_events.csv'
 # msat_fn = base + 'data/mozambique/grid_all_msat_events.csv'
 mda_fn = base + 'data/mozambique/grid_all_mda_events.csv'
 # stepd_fn = base + 'data/interventions/kariba/2017-11-27/raw/grid_all_stepd_events.csv'
+
+larval_params = {
+    "const_h": 1,
+    "temp_h": 35,
+    "water_h": 1,
+    "linear_h": 1
+}
 
 
 # start_year = 2000
@@ -72,11 +79,11 @@ comps_exp = COMPS_Experiment(base,
                              # msat_fn=msat_fn,
                              mda_fn=mda_fn,
                              # stepd_fn=stepd_fn,
-                             larval_params_mode="calibrate",
+                             larval_params_mode="uniform",
                              immunity_mode="naive")
 
 if run_mode == 0:
-    comps_exp.file_setup()  # 1. Run this first to set up input files.  When submitting experiment to COMPS, comment this line out.
+    comps_exp.file_setup(larval_params=larval_params)  # 1. Run this first to set up input files.  When submitting experiment to COMPS, comment this line out.
 
 cb = comps_exp.return_cb_for_calibration()
 
@@ -84,97 +91,6 @@ cb = comps_exp.return_cb_for_calibration()
 # Break the file into clusters
 # Loop over clusters.  For each cluster, calibrate:
 
-
-
-
-# Calibration-specific stuff:
-sites = [GriddedCalibSite()]
-# The default plotters used in an Optimization with OptimTool
-# plotters = [LikelihoodPlotter(combine_sites=True),
-#             SiteDataPlotter(num_to_plot=5, combine_sites=True),
-#             OptimToolPlotter()  # OTP must be last because it calls gc.collect()
-#             ]
-plotters = [LikelihoodPlotter(combine_sites=True),
-            OptimToolPlotter()  # OTP must be last because it calls gc.collect()
-            ]
-
-params = [
-    {
-        'Name': 'funestus_scale',
-        'Dynamic': True,
-        'MapTo': 'funestus_scale', # <-- DEMO: Custom mapping, see map_sample_to_model_input below
-        'Guess': 5,
-        'Min': 0.1,
-        'Max': 50
-    },
-    {
-        'Name': 'arabiensis_scale',
-        'Dynamic': True,
-        'MapTo': 'arabiensis_scale',
-        'Guess': 35,
-        'Min': 0.1,
-        'Max': 100
-    },
-]
-
-
-def map_sample_to_model_input(cb, sample):
-    tags = {}
-    sample = copy.deepcopy(sample)
-
-    if 'arabiensis_scale' in sample:
-        a_sc = sample.pop('arabiensis_scale')
-
-        hab = {'arabiensis': {'TEMPORARY_RAINFALL': 1e8 * a_sc, 'CONSTANT': 2e6}}
-        set_larval_habitat(cb, hab)
-
-        tags.update({'arabiensis_scale': a_sc})
-
-    if 'funestus_scale' in sample:
-        f_sc = sample.pop('funestus_scale')
-
-        hab = {'funestus': {
-            "WATER_VEGETATION": 2e6, # Caitlin.  Milen had 2e7,
-            "LINEAR_SPLINE": {
-                "Capacity_Distribution_Per_Year": {
-                    "Times": [0.0, 30.417, 60.833, 91.25, 121.667, 152.083, 182.5, 212.917, 243.333, 273.75, 304.167,
-                              334.583],
-                    "Values": [0.0, 0.0, 0.0, 0.2, 0.8, 1.0, 1.0, 1.0, 0.5, 0.2, 0.0, 0.0] # Caitlin
-                    # "Values": [0.0, 0.0, 0.0, 0.0, 0.2, 1.0, 1.0, 1.0, 0.5, 0.2, 0.0, 0.0] # Milen
-                },
-                "Max_Larval_Capacity": 1e8 * f_sc
-            }
-        }
-        }
-
-        set_larval_habitat(cb, hab)
-
-        tags.update({'funestus_scale': f_sc})
-
-    for name,value in sample.items():
-        print('UNUSED PARAMETER:', name)
-    assert( len(sample) == 0 ) # All params used
-
-    return tags
-
-
-
-optimtool = OptimTool(params,
-                      samples_per_iteration=5,
-                      center_repeats=1)
-
-calib_manager = CalibManager(name='TestOptimMotaze',
-                             config_builder=cb,
-                             map_sample_to_model_input_fn=map_sample_to_model_input,
-                             sites=sites,
-                             next_point=optimtool,
-                             sim_runs_per_param_set=2,
-                             max_iterations=8,
-                             plotters=plotters)
-
-run_calib_args = {
-    "calib_manager": calib_manager
-}
 
 
 if __name__ == "__main__":
@@ -191,7 +107,5 @@ if __name__ == "__main__":
             SetupParser.set("HPC", "priority", priority)
             SetupParser.set("HPC", "node_group", coreset)
 
-        cm = run_calib_args["calib_manager"]
-        cm.run_calibration()
+        comps_exp.submit_experiment(num_seeds=8, simple_intervention_sweep=False)
 
-        # comps_exp.submit_experiment(num_seeds=4,simple_intervention_sweep=False)

@@ -404,7 +404,8 @@ class COMPS_Experiment:
         if larval_params:
             temp_h = larval_params['temp_h']
             linear_h = larval_params['linear_h']
-            demo_fp = self.exp_base + "Demographics/demo_temp{}_linear{}.json".format(int(temp_h),int(linear_h))
+            # demo_fp = self.exp_base + "Demographics/demo_temp{}_linear{}.json".format(int(temp_h),int(linear_h))
+            demo_fp = self.exp_base + "Demographics/demo.json"
         else:
             demo_fp = self.exp_base + "Demographics/demo.json"
 
@@ -473,19 +474,18 @@ class COMPS_Experiment:
                 i += 1
 
         elif self.larval_params_mode=='uniform':
+            if larval_params:
+                const_h = larval_params['const_h']
+                temp_h = larval_params['temp_h']
+                water_h = larval_params['water_h']
+                linear_h = larval_params['linear_h']
+            else:
+                const_h = 1.
+                temp_h = 122.
+                water_h = 1.
+                linear_h = 97.
+
             for node_item in demo_dict['Nodes']:
-
-                if larval_params:
-                    const_h = larval_params['const_h']
-                    temp_h = larval_params['temp_h']
-                    water_h = larval_params['water_h']
-                    linear_h = larval_params['linear_h']
-                else:
-                    const_h = 1.
-                    temp_h = 122.
-                    water_h = 1.
-                    linear_h = 97.
-
                 add_larval_habitat_to_node(node_item,const_h,temp_h,water_h,linear_h)
 
 
@@ -799,12 +799,12 @@ class COMPS_Experiment:
                 "MDA": include_mda,
                 "StepD": include_stepd}
 
-    def file_setup(self,generate_immunity_file=True,generate_demographics_file=True,generate_climate_files=True,generate_migration_files=True):
+    def file_setup(self,generate_immunity_file=True,generate_demographics_file=True,generate_climate_files=True,generate_migration_files=True,larval_params=None):
         # self.multinode_setup()
 
         if generate_demographics_file:
             print("Generating demographics file...")
-            self.gen_demo_file(self.grid_pop_csv_file)
+            self.gen_demo_file(self.grid_pop_csv_file,larval_params=larval_params)
 
         if generate_immunity_file:
             print("Generating immunity files...")
@@ -870,7 +870,8 @@ class COMPS_Experiment:
             ]
             modlists.append(new_modlist)
         else:
-            new_modlist = [ModFn(self.implement_interventions, True, True, True, True, True)]
+            # new_modlist = [ModFn(self.implement_interventions, True, True, True, True, True)]
+            new_modlist = [ModFn(self.implement_interventions, True, True, False, True, False)]
             modlists.append(new_modlist)
 
 

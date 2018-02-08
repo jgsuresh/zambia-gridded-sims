@@ -24,7 +24,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         self.base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
 
     def filter(self, sim_metadata):
-        # if sim_metadata["sim_id"] == "08dff6bf-690b-e811-9415-f0921c16b9e5":
+        # if sim_metadata["sim_id"] == "a7b0437b-e20b-e811-9415-f0921c16b9e5":
         return True
         # else:
         #     return False
@@ -192,8 +192,8 @@ class RDTPrevAnalyzer(BaseAnalyzer):
 
         plt.legend()
         # plt.xlim([3000,7000])
-        plt.xlim([foo("2015-01-01"), foo("2018-01-01")])
-        plt.ylim([-0.01,0.1])
+        plt.xlim([foo("2014-01-01"), foo("2018-01-01")])
+        plt.ylim([-0.01,0.15])
 
         plt.tight_layout()
         plt.show()
@@ -207,7 +207,8 @@ if __name__=="__main__":
 
     # Calibration experiments:
     # am.add_experiment(retrieve_experiment("09829129-b00b-e811-9415-f0921c16b9e5")) #Mahel
-    am.add_experiment(retrieve_experiment("8f552695-c90b-e811-9415-f0921c16b9e5")) #Motaze
+    # am.add_experiment(retrieve_experiment("11cb8543-e20b-e811-9415-f0921c16b9e5")) #Motaze
+    am.add_experiment(retrieve_experiment("8853ca79-1c0c-e811-9415-f0921c16b9e5"))
 
     am.add_analyzer(RDTPrevAnalyzer())
     am.analyze()
