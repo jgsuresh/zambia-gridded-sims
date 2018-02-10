@@ -3,9 +3,9 @@
 *.dll
 
 # Large data files:
-data/raw/*.csv
-data/intermediate/*.csv
-data/*.csv
+
+# COMPS experiments:
+data/COMPS_experiments/*
 
 # Python:
 *.pyc
@@ -17,3 +17,6 @@ data/*.csv
 # Figures
 *.pdf
 *.png
+
+# COMPS log files:
+*.log

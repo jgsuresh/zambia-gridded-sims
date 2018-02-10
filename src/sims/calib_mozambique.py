@@ -29,6 +29,7 @@ priority = "AboveNormal"
 coreset = "emod_abcd" #"emod_32cores"
 num_cores = 8
 catch = "Motaze"
+serialize = False
 
 # ===================================================================================
 
@@ -54,6 +55,7 @@ mda_fn = base + 'data/mozambique/grid_all_mda_events.csv'
 # num_years = 0.03 #1
 start_year = 1994
 num_years = 24
+serialize_year = 2014
 
 
 comps_exp = COMPS_Experiment(base,
@@ -79,6 +81,9 @@ if run_mode == 0:
     comps_exp.file_setup()  # 1. Run this first to set up input files.  When submitting experiment to COMPS, comment this line out.
 
 cb = comps_exp.return_cb_for_calibration()
+
+if serialize:
+    cb.update_params({'Serialization_Time_Steps': [365 * (serialize_year-start_year)]})
 
 #fixme EVENTUALLY, ADD CLUSTER-CHUNKING ALGORITHM HERE.  FOR NOW, CALIBRATE OVER ALL CELLS
 # Break the file into clusters
