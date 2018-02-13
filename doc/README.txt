@@ -4,4 +4,8 @@ How to run:
 1. Edit run_sim.py
 2. Run run_sim.py
 
+Calibration:
+
+Analysis:
+
 Examples:
