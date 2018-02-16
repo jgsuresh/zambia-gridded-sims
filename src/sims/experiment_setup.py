@@ -149,7 +149,8 @@ class COMPS_Experiment:
         self.cb.set_param("Enable_Demographics_Other", 1)
         self.cb.set_param("Enable_Demographics_Builtin", 0)
         self.cb.set_param("Valid_Intervention_States", [])
-        self.cb.set_param("New_Diagnostic_Sensitivity", 0.025) # 40/uL
+        # self.cb.set_param("New_Diagnostic_Sensitivity", 0.025) # 40/uL
+        self.cb.set_param("Report_Detection_Threshold_True_Parasite_Density", 40.0)
 
         # Human population properties:
         self.cb.update_params({
@@ -162,48 +163,48 @@ class COMPS_Experiment:
         self.cb.update_params({'Vector_Species_Names': ['arabiensis', 'funestus']})
 
         # Arabiensis
-        set_species_param(self.cb, 'arabiensis', 'Larval_Habitat_Types', {
-            "CONSTANT": 2000000.0,
-            "TEMPORARY_RAINFALL": 100000000.0
-        })
+        # set_species_param(self.cb, 'arabiensis', 'Larval_Habitat_Types', {
+        #     # "CONSTANT": 2000000.0,
+        #     "TEMPORARY_RAINFALL": 100000000.0
+        # })
 
         # Funestus
-        set_species_param(self.cb, 'funestus', 'Larval_Habitat_Types', {
-            "LINEAR_SPLINE": {
-                "Capacity_Distribution_Per_Year": {
-                    "Times": [
-                        0.0,
-                        30.417,
-                        60.833,
-                        91.25,
-                        121.667,
-                        152.083,
-                        182.5,
-                        212.917,
-                        243.333,
-                        273.75,
-                        304.167,
-                        334.583
-                    ],
-                    "Values": [
-                        0.0,
-                        0.0,
-                        0.0,
-                        0.2,
-                        0.8,
-                        1.0,
-                        1.0,
-                        1.0,
-                        0.5,
-                        0.2,
-                        0.0,
-                        0.0
-                    ]
-                },
-                "Max_Larval_Capacity": 100000000.0
-            },
-            "WATER_VEGETATION": 2000000.0
-        })
+        # set_species_param(self.cb, 'funestus', 'Larval_Habitat_Types', {
+        #     "LINEAR_SPLINE": {
+        #         "Capacity_Distribution_Per_Year": {
+        #             "Times": [
+        #                 0.0,
+        #                 30.417,
+        #                 60.833,
+        #                 91.25,
+        #                 121.667,
+        #                 152.083,
+        #                 182.5,
+        #                 212.917,
+        #                 243.333,
+        #                 273.75,
+        #                 304.167,
+        #                 334.583
+        #             ],
+        #             "Values": [
+        #                 0.0,
+        #                 0.0,
+        #                 0.0,
+        #                 0.2,
+        #                 0.8,
+        #                 1.0,
+        #                 1.0,
+        #                 1.0,
+        #                 0.5,
+        #                 0.2,
+        #                 0.0,
+        #                 0.0
+        #             ]
+        #         },
+        #         "Max_Larval_Capacity": 100000000.0
+        #     },
+        #     "WATER_VEGETATION": 2000000.0
+        # })
 
 
         # Immunity:
@@ -226,7 +227,7 @@ class COMPS_Experiment:
         full_events_list = intervene_events_list # migration events too verbose
 
         self.cb.update_params({
-            "Report_Event_Recorder": 1,
+            "Report_Event_Recorder": 0, # OFF
             "Report_Event_Recorder_Ignore_Events_In_List": 0,
             "Listed_Events": full_events_list,
             "Report_Event_Recorder_Events": full_events_list
@@ -236,12 +237,14 @@ class COMPS_Experiment:
         # Spatial reporting:
         self.cb.update_params({
             'Enable_Spatial_Output': 1,  # turn on spatial reporting
-            'Spatial_Output_Channels': ['Infectious_Vectors', 'Adult_Vectors', 'New_Infections', 'Population',
-                                        'Prevalence',
-                                        'New_Diagnostic_Prevalence', 'Daily_EIR', 'New_Clinical_Cases',
-                                        'Human_Infectious_Reservoir', 'Daily_Bites_Per_Human',
-                                        'Land_Temperature',
-                                        'Relative_Humidity', 'Rainfall', 'Air_Temperature']
+            # 'Spatial_Output_Channels': ['Infectious_Vectors', 'Adult_Vectors', 'New_Infections', 'Population',
+            #                             'Prevalence',
+            #                             'New_Diagnostic_Prevalence', 'Daily_EIR', 'New_Clinical_Cases',
+            #                             'Human_Infectious_Reservoir', 'Daily_Bites_Per_Human',
+            #                             'Land_Temperature',
+            #                             'Relative_Humidity', 'Rainfall', 'Air_Temperature']
+            'Spatial_Output_Channels': ['Adult_Vectors', 'Population','Prevalence',
+                                        'True_Prevalence', 'Daily_EIR', 'Daily_Bites_Per_Human']
         })
 
         add_summary_report(self.cb)
@@ -434,9 +437,9 @@ class COMPS_Experiment:
             water_multiplier = water_h * pop_multiplier
 
             node_item['NodeAttributes']['LarvalHabitatMultiplier'] = {
-                "CONSTANT": const_multiplier,
-                "TEMPORARY_RAINFALL": temp_multiplier,
-                "WATER_VEGETATION": water_multiplier,
+                # "CONSTANT": const_multiplier,
+                # "TEMPORARY_RAINFALL": temp_multiplier,
+                # "WATER_VEGETATION": water_multiplier,
                 "LINEAR_SPLINE": linear_multiplier
             }
 
@@ -771,7 +774,7 @@ class COMPS_Experiment:
                     add_drug_campaign(cb, campaign_type='MSAT', drug_code='AL',
                                       start_days=[float(msat_events['simday'][msat])],
                                       coverage=msat_events['cov_all'][msat], repetitions=1, interval=60,
-                                      dosing='SingleDose',
+                                      # dosing='SingleDose',
                                       nodes=[nodeid_lookup[msat_events['grid_cell'][msat]]])
 
         if include_mda:
@@ -779,7 +782,7 @@ class COMPS_Experiment:
                     add_drug_campaign(cb, campaign_type='MDA', drug_code='DP',
                                       start_days=[float(mda_events['simday'][mda])],
                                       coverage=float(mda_events['cov_all'][mda]), repetitions=1, interval=60,
-                                      dosing='SingleDose',
+                                      # dosing='SingleDose',
                                       nodes=[nodeid_lookup[mda_events['grid_cell'][mda]]])
 
         if include_stepd:

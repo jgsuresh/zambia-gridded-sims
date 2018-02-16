@@ -16,6 +16,10 @@ from simtools.AssetManager.SimulationAssets import SimulationAssets
 from dtk.vector.species import set_larval_habitat
 from dtk.interventions.habitat_scale import scale_larval_habitats
 
+from calibtool.algorithms.PBnB.OptimTool_PBnB import OptimTool_PBnB, par
+# from calibtool.algorithms.PBnB.OptimTool_PBnB import OptimTool_PBnB, par
+from calibtool.plotters.OptimToolPBnBPlotter import OptimToolPBnBPlotter
+
 from dtk.vector.study_sites import configure_site
 
 from GriddedCalibSite import GriddedCalibSite
@@ -28,10 +32,10 @@ run_mode = 1
 run_location = "HPC" #""LOCAL"
 priority = "AboveNormal"
 coreset = "emod_abcd" #"emod_32cores"
-num_cores = 12
+num_cores = 8
 
 mozambique_catch_list = ["Caputine","Mahel","Panjane","Mapulanguene","Chicutso","Moine","Motaze","Chichuco","Facazissa","Magude-Sede"]
-catch = "Motaze" #mozambique_catch_list[1]
+catch = mozambique_catch_list[0]
 
 # ===================================================================================
 
@@ -125,13 +129,13 @@ scale_larval_habitats(cb,
 # Calibration-specific stuff:
 sites = [GriddedCalibSite()]
 # The default plotters used in an Optimization with OptimTool
-plotters = [LikelihoodPlotter(combine_sites=True),
-            SiteDataPlotter(num_to_plot=5, combine_sites=True),
-            OptimToolPlotter()  # OTP must be last because it calls gc.collect()
-            ]
 # plotters = [LikelihoodPlotter(combine_sites=True),
+#             SiteDataPlotter(num_to_plot=5, combine_sites=True),
 #             OptimToolPlotter()  # OTP must be last because it calls gc.collect()
 #             ]
+plotters = [LikelihoodPlotter(combine_sites=True),
+            SiteDataPlotter(num_to_plot=5, combine_sites=True),
+            OptimToolPBnBPlotter()]
 
 params = [
     {
@@ -144,17 +148,17 @@ params = [
         # 'Guess': 6,
         # 'Min': 4,
         # 'Max': 8
-        'Guess': 10,
-        'Min': 6,
-        'Max': 11
+        'Guess': 8.5,
+        'Min': 7,
+        'Max': 9.5#10
     },
     {
         'Name': 'arabiensis_scale',
         'Dynamic': True,
         'MapTo': 'arabiensis_scale',
-        'Guess': 10,
-        'Min': 6,
-        'Max': 11
+        'Guess': 8.5,
+        'Min': 6.5,
+        'Max': 10.5
     },
 ]
 
@@ -241,17 +245,41 @@ def map_sample_to_model_input(cb, sample):
 
     return tags
 
-optimtool = OptimTool(params,
-                      samples_per_iteration=25,
-                      center_repeats=1)
 
-calib_manager = CalibManager(name='TestOptim{}'.format(catch),
+
+
+
+
+
+
+
+name = 'TestPBNB_{}'.format(catch)
+#
+# optimtool = OptimTool(params,
+#                       samples_per_iteration=25,
+#                       center_repeats=1)
+optimtool_PBnB = OptimTool_PBnB(params,
+                                s_running_file_name=name,
+                                s_problem_type="deterministic",  # deterministic or noise
+                                f_delta=par.f_delta,  # <-- to determine the quantile for the target level set
+                                f_alpha=par.f_alpha,  # <-- to determine the quality of the level set approximation
+                                i_k_b=par.i_k_b,  # <-- maximum number of inner iterations
+                                i_n_branching=par.i_n_branching,  # <-- number of branching subregions
+                                i_c=par.i_c,  # <--  increasing number of sampling points ofr all
+                                i_replication=par.i_replication,  # <-- initial number of replication
+                                i_stopping_max_k=par.i_stopping_max_k,  # <-- maximum number of outer iterations
+                                i_max_num_simulation_per_run=par.i_max_num_simulation_per_run,
+                                # <-- maximum number of simulations per iteration
+                                f_elite_worst_sampling_para=par.f_elite_worst_sampling_para)  # <-- parameters that determine the number of simulation runs for elite and worst subregions
+
+
+calib_manager = CalibManager(name=name,
                              config_builder=cb,
                              map_sample_to_model_input_fn=map_sample_to_model_input,
                              sites=sites,
-                             next_point=optimtool,
+                             next_point=optimtool_PBnB, #optimtool,
                              sim_runs_per_param_set=2,
-                             max_iterations=8,
+                             max_iterations=20,
                              plotters=plotters)
 
 run_calib_args = {

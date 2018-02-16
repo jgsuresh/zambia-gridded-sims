@@ -115,7 +115,7 @@ class CalibTestAnalyzer(BaseCalibrationAnalyzer):
         prev_comparison_df.sim_id = parser.sim_id
 
         parser.prev_comparison_df = prev_comparison_df.copy()
-        self.holdme = prev_comparison_df.copy()
+        # self.holdme = prev_comparison_df.copy()
         return prev_comparison_df
 
         # # Compute a pop-weighted MSE here (see green whiteboard)
@@ -145,7 +145,7 @@ class CalibTestAnalyzer(BaseCalibrationAnalyzer):
 
         for sim_id, parser in parsers.items():
             if 'data' in locals():
-                data = data.merge(parser.prev_comparison_df.copy(),
+                data = data.merge(parser.prev_comparison_df, #.copy()
                                   how='left',
                                   left_on=['grid_cell', 'date', 'N', 'prev'],
                                   right_on=['grid_cell', 'date', 'N', 'prev'])
@@ -192,6 +192,7 @@ class CalibTestAnalyzer(BaseCalibrationAnalyzer):
         self.result = pd.Series(result_arr)
         self.result.index.name = "sample"
         print(self.result)
+        # in future, return result
 
 
     def calc_mse_sqrt(self, data_df, sample_index):

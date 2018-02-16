@@ -124,17 +124,20 @@ params = [
         'Name': 'funestus_scale',
         'Dynamic': True,
         'MapTo': 'funestus_scale', # <-- DEMO: Custom mapping, see map_sample_to_model_input below
-        'Guess': 25,
-        'Min': 0.1,
-        'Max': 150
+        # 'Guess': 25,
+        # 'Min': 0.1,
+        # 'Max': 150
+        'Guess': 6,
+        'Min': 4,
+        'Max': 8
     },
     {
         'Name': 'arabiensis_scale',
         'Dynamic': True,
         'MapTo': 'arabiensis_scale',
-        'Guess': 25,
-        'Min': 0.1,
-        'Max': 150
+        'Guess': 7,
+        'Min': 5,
+        'Max': 9
     },
 ]
 
@@ -146,7 +149,36 @@ def map_sample_to_model_input(cb, sample):
     if 'arabiensis_scale' in sample:
         a_sc = sample.pop('arabiensis_scale')
 
-        hab = {'arabiensis': {'TEMPORARY_RAINFALL': 1e8 * a_sc, 'CONSTANT': 2e6}}
+        # Zambia
+        # hab = {'arabiensis': {'TEMPORARY_RAINFALL': 1e8 * a_sc, 'CONSTANT': 2e6}}
+
+        # Prashanth ento
+        hab = {'arabiensis': {
+            "TEMPORARY_RAINFALL": 2.2e7,
+            "LINEAR_SPLINE": {
+                "Capacity_Distribution_Per_Year": {
+                    "Times": [0.0, 30.417, 60.833, 91.25, 121.667, 152.083, 182.5, 212.917, 243.333, 273.75, 304.167,
+                              334.583],
+                    "Values": [0.273953355,
+                               4.226011848,
+                               5.140191814,
+                               9.363408701,
+                               0.0,
+                               0.414082115,
+                               0.139915067,
+                               0.186456901,
+                               0.015611024,
+                               0.101027567,
+                               0.0,
+                               0.121014426
+                               ]
+                },
+                # "Max_Larval_Capacity": 1e8 * f_sc
+                "Max_Larval_Capacity": pow(10,a_sc)
+            }
+        }
+        }
+
         set_larval_habitat(cb, hab)
 
         tags.update({'arabiensis_scale': a_sc})
@@ -155,15 +187,29 @@ def map_sample_to_model_input(cb, sample):
         f_sc = sample.pop('funestus_scale')
 
         hab = {'funestus': {
-            "WATER_VEGETATION": 2e6, # Caitlin.  Milen had 2e7,
+            "WATER_VEGETATION": 2e3, # Prashanth    #2e6, # Caitlin.  Milen had 2e7,
             "LINEAR_SPLINE": {
                 "Capacity_Distribution_Per_Year": {
                     "Times": [0.0, 30.417, 60.833, 91.25, 121.667, 152.083, 182.5, 212.917, 243.333, 273.75, 304.167,
                               334.583],
-                    "Values": [0.0, 0.0, 0.0, 0.2, 0.8, 1.0, 1.0, 1.0, 0.5, 0.2, 0.0, 0.0] # Caitlin
+                    # "Values": [0.0, 0.0, 0.0, 0.2, 0.8, 1.0, 1.0, 1.0, 0.5, 0.2, 0.0, 0.0] # Caitlin
                     # "Values": [0.0, 0.0, 0.0, 0.0, 0.2, 1.0, 1.0, 1.0, 0.5, 0.2, 0.0, 0.0] # Milen
+                    "Values": [0.0,
+                               1.202730029,
+                               0.112447779,
+                               1.467850365,
+                               2.470962168,
+                               1.064668156,
+                               4.806719314,
+                               0.914212162,
+                               9.919572963,
+                               0.437353893,
+                               0.392657387,
+                               1.213697659
+                               ]
                 },
-                "Max_Larval_Capacity": 1e8 * f_sc
+                "Max_Larval_Capacity": pow(10,f_sc)  # Prashanth
+                # "Max_Larval_Capacity": 1e8 * f_sc # older
             }
         }
         }

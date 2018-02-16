@@ -12,7 +12,9 @@ from relative_time import *
 
 
 class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
-    filenames = ['output/SpatialReport_Population.bin', 'output/SpatialReport_New_Diagnostic_Prevalence.bin',
+    filenames = ['output/SpatialReport_Population.bin',
+                 'output/SpatialReport_True_Prevalence.bin',
+                 # 'output/SpatialReport_New_Diagnostic_Prevalence.bin',
                  'Assets/Demographics/demo.json']
     # filenames = ['output/InsetChart.json']
 
@@ -115,7 +117,7 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         prev_comparison_df.sim_id = parser.sim_id
 
         parser.prev_comparison_df = prev_comparison_df.copy()
-        self.holdme = prev_comparison_df.copy()
+        # self.holdme = prev_comparison_df.copy()
         return prev_comparison_df
 
         # # Compute a pop-weighted MSE here (see green whiteboard)
@@ -141,9 +143,17 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         # selected = [p.selected_data[id(self)] for p in parsers.values() if id(self) in p.selected_data]
 
 
-        # Merge all of the dataframes together:
+        n_samples = 0
+        n_seeds = 0
 
+        # Merge all of the dataframes together:
         for sim_id, parser in parsers.items():
+            sample_index = parser.sim_data.get('__sample_index__')
+            run_number = parser.sim_data['Run_Number']
+
+            n_samples = max([n_samples, sample_index])
+            n_seeds = max([n_seeds, run_number])
+
             if 'data' in locals():
                 data = data.merge(parser.prev_comparison_df.copy(),
                                   how='left',
@@ -152,28 +162,52 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
             else:
                 data = parser.prev_comparison_df.copy()
 
+
+        n_samples += 1
+
+        self.n_samples = n_samples
+        self.n_seeds = n_seeds
+
+        # if n_seeds =
+        for jj in range(n_samples):
+            for ii in range(1, n_seeds + 1):
+                colname = 'prev_sim_sample{}_run{}'.format(jj, ii)
+                if 'hold' in locals():
+                    hold += np.array(data[colname])
+                else:
+                    hold = np.array(data[colname])
+
+            avg_colname = 'prev_sim_sample{}'.format(jj)
+            data[avg_colname] = hold/n_seeds
+
+            del hold
+
+
+
+
         # Now combine by run numbers:
         # First find what the maximum run number is:
-        for i in range(1,100):
-            if "prev_sim_sample0_run{}".format(i) in data:
-                run_number_max = i
-            else:
-                break
+        # for i in range(1,100):
+        #     if "prev_sim_sample0_run{}".format(i) in data:
+        #         run_number_max = i
+        #     else:
+        #         break
 
-        self.n_samples = len(parsers)/run_number_max
+        # self.n_samples = len(parsers)
+        # self.n_samples = len(parsers)/run_number_max
 
         # Now loop over these, and average their results
-        for j in range(self.n_samples):
-            hold = data['prev_sim_sample{}_run1'.format(j)]
-            if run_number_max == 1:
-                for i in range(2,run_number_max):
-                    hold += data['prev_sim_sample{}_run{}'.format(j,i)]
+        # for j in range(self.n_samples):
+        #     hold = data['prev_sim_sample{}_run1'.format(j)]
+        #     if run_number_max == 1:
+        #         for i in range(2,run_number_max):
+        #             hold += data['prev_sim_sample{}_run{}'.format(j,i)]
+        #
+        #     data['prev_sim_sample{}'.format(j)] = pd.Series(np.array(hold)/run_number_max,index=data.index)
 
-            data['prev_sim_sample{}'.format(j)] = pd.Series(np.array(hold)/run_number_max,index=data.index)
 
 
-
-        sample_col_list = ["prev_sim_sample{}".format(sample_ind) for sample_ind in range(self.n_samples)]
+        sample_col_list = ["prev_sim_sample{}".format(sample_ind) for sample_ind in range(n_samples)]
         other_col_list = ["grid_cell","N","date","prev"]
         full_col_list = sample_col_list + other_col_list
 
@@ -208,7 +242,7 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
             # sample_col_name = "prev_sim_sample{}".format(i)
 
             # Minus sign very important, because OptimTool is trying to maximize the result
-            result_arr[i] = -1 * self.calc_mse_sqrt(self.data,i)
+            result_arr[i] = self.calc_mse_sqrt(self.data,i) #fixme no negative for pbnb
 
         self.result = pd.Series(result_arr)
         self.result.index.name = "sample"
