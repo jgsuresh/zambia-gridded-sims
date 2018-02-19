@@ -30,7 +30,7 @@ import numpy as np
 def get_catch_list():
     # grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-21/cleaned/grid_lookup_caps.csv')
     # grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_lookup.csv')
-    grid_lookup = pd.read_csv(base + 'data/mozambique/grid_lookup.csv')
+    grid_lookup = pd.read_csv(base + 'data/mozambique/cleaned/grid_lookup.csv')
     # Get a list of all catchments:
     return grid_lookup['catchment'].unique()
 
@@ -43,6 +43,7 @@ def get_catch_prev(full_df,catch,weighting='population'):
     in_catch = np.in1d(grid_prev['grid_cell'],np.array(catch_cells))
 
     catch_prev = {}
+    denom = {}
     for rd in range(1,11):
         in_rd = full_df['round'] == rd
         full_cut = np.logical_and(in_catch,in_rd)
@@ -64,31 +65,42 @@ def get_catch_prev(full_df,catch,weighting='population'):
                 if weighting=='population':
                     total_prev = np.float(np.sum(prev*maxpop_ever))/np.float(np.sum(maxpop_ever))
                     catch_prev[rd] = total_prev
+                    denom[rd] = np.sum(maxpop_ever)
 
                 elif weighting=='MDA_coverage':
                     total_prev = np.float(np.sum(prev*pop_this_rd))/np.float(np.sum(pop_this_rd))
                     catch_prev[rd] = total_prev
+                    denom[rd] = np.sum(pop_this_rd)
 
-    return catch_prev
+    return [catch_prev,denom]
 
 def save_prev_by_catch(full_df, weighting='population'):
     # For each catchment, find all grid cells which correspond to this catchment
     catch_list = get_catch_list()
     prev_dict = {}
+    denom_dict = {}
     for catch in catch_list:
         # Ignore the NAN - pixels which are not in a catchment:
-        if type(catch)== str:
-            prev_dict[catch] = get_catch_prev(full_df,catch,weighting=weighting)
+        if type(catch)== str and catch != "NONE":
+            [prev_dict[catch],denom_dict[catch]] = get_catch_prev(full_df,catch,weighting=weighting)
 
     # Turn this into a dataframe, and save it to CSV
     prev_df = pd.DataFrame(prev_dict)
+    denom_df = pd.DataFrame(denom_dict)
+    # prev_df = pd.concat([prev_df,denom_df],axis=1)
+    # prev_df = pd.DataFrame({
+    #     "prev": prev_dict,
+    #     "weight": denom_dict
+    # })
 
     if weighting == 'population':
         # prev_df.to_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_pop_weighted.csv')
         prev_df.to_csv(base + 'data/mozambique/cleaned/catch_prevalence_pop_weighted.csv')
+        denom_df.to_csv(base + 'data/mozambique/cleaned/catch_prevalence_pop_weighted_denom.csv')
     elif weighting == 'MDA_coverage':
         # prev_df.to_csv(base + 'data/interventions/kariba/2017-11-27/cleaned/catch_prevalence_coverage_weighted.csv')
         prev_df.to_csv(base + 'data/mozambique/cleaned/catch_prevalence_coverage_weighted.csv')
+        denom_df.to_csv(base + 'data/mozambique/cleaned/catch_prevalence_coverage_weighted_denom.csv')
 
 
 
@@ -97,7 +109,7 @@ if __name__ == "__main__":
     # grid_prev = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_prevalence.csv')
     # grid_lookup = pd.read_csv(base + 'data/interventions/kariba/2017-11-27/raw/grid_lookup.csv')
     grid_prev = pd.read_csv(base + 'data/mozambique/grid_prevalence_with_dates.csv')
-    grid_lookup = pd.read_csv(base + 'data/mozambique/grid_lookup.csv')
+    grid_lookup = pd.read_csv(base + 'data/mozambique/cleaned/grid_lookup.csv')
 
     # Merge so each grid cell also knows its own catchment
     full_df = grid_prev.merge(grid_lookup,how='left',left_on='grid_cell',right_on='grid_cell')

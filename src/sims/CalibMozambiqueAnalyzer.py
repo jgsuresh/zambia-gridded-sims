@@ -34,8 +34,8 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
     #     df.sim_id = parser.sim_id
     #     return df
 
-    # def filter(self, sim_metadata):
-    #     return True
+    def filter(self, sim_metadata):
+        return True
 
     def apply(self, parser):
         sample_index = parser.sim_data.get('__sample_index__')
@@ -254,10 +254,16 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         ref_data = np.array(data_df["prev"])
         pops = np.array(data_df["N"])
 
-        mse = np.sum(pops * (sim_data - ref_data)**2.)/np.sum(pops)
-        mse_sqrt = np.sqrt(mse)
+        supersimple = np.abs(np.sum(pops*ref_data)-np.sum(pops*sim_data))
 
-        return mse_sqrt
+        # mse = np.sum(pops * (sim_data - ref_data)**2.)/np.sum(pops)
+        # # mse = np.sum(pops**2 * (sim_data - ref_data) ** 2.) / np.sum(pops**2)
+        # # mse = np.sum(pops * np.sqrt((sim_data - ref_data)**2)) / np.sum(pops)
+        # mse_sqrt = np.sqrt(mse)
+        #
+        # # return mse
+        # return mse_sqrt
+        return supersimple
 
     # @classmethod
     # def plot_comparison(cls, fig, data, **kwargs):

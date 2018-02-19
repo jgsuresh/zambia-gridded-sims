@@ -9,7 +9,8 @@ from gridded_sim_general import *
 
 class RDTPrevAnalyzer(BaseAnalyzer):
 
-    filenames = ['output/SpatialReport_Population.bin', 'output/SpatialReport_Prevalence.bin', 'output/SpatialReport_New_Diagnostic_Prevalence.bin', 'Assets/Demographics/demo.json']
+    # filenames = ['output/SpatialReport_Population.bin', 'output/SpatialReport_Prevalence.bin', 'output/SpatialReport_New_Diagnostic_Prevalence.bin', 'Assets/Demographics/demo.json']
+    filenames = ['output/SpatialReport_Population.bin', 'output/SpatialReport_Prevalence.bin', 'output/SpatialReport_True_Prevalence.bin', 'Assets/Demographics/demo.json']
 
     def __init__(self):
         super(RDTPrevAnalyzer, self).__init__()
@@ -24,15 +25,30 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         self.base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
 
     def filter(self, sim_metadata):
-        # if sim_metadata["sim_id"] == "a7b0437b-e20b-e811-9415-f0921c16b9e5":
-        return True
-        # else:
-        #     return False
+        # # if sim_metadata["sim_id"] == "b5a5cae6-a010-e811-9415-f0921c16b9e5": #Caputine
+        # # if sim_metadata["sim_id"] == "5f8db411-a710-e811-9415-f0921c16b9e5":  # Chicutso
+        # # if sim_metadata["sim_id"] == "250a95c8-a110-e811-9415-f0921c16b9e5":  # Mahel
+        # # if sim_metadata["sim_id"] == "10681811-a410-e811-9415-f0921c16b9e5":  # Mapulanguene
+        # # if sim_metadata["sim_id"] == "d2ac0ef0-a910-e811-9415-f0921c16b9e5":  # Moine
+        # # if sim_metadata["sim_id"] == "81462cf7-a710-e811-9415-f0921c16b9e5":  # Panjane
+        # if sim_metadata["sim_id"] == "a7b0437b-e20b-e811-9415-f0921c16b9e5":  # Motaze
+
+        # if sim_metadata["__sample_index__"] == 1:  # Moine iter5
+        # if sim_metadata["__sample_index__"] == 4:  # Caputine iter6
+        # if sim_metadata["__sample_index__"] == 0:  # Mahel iter2
+        # if sim_metadata["__sample_index__"] == 0:  # Panjane iter5 (Motaze too)
+        # if sim_metadata["__sample_index__"] == 12:  # Motaze iter1
+        # if sim_metadata["__sample_index__"] == 20:  # Mapa
+        # if sim_metadata["__sample_index__"] == 60:  # pbnb
+        if sim_metadata["__sample_index__"] == 16:
+            return True
+        else:
+            return False
 
     def apply(self, parser):
         exp_name = parser.experiment.exp_name
         # self.catch[parser.sim_id] = exp_name.split('_')[0] # Assumes the experiment name is "CATCHNAME_full"
-        self.catch[parser.sim_id] = "Motaze" #"Mahel"
+        self.catch[parser.sim_id] = "Motaze"
 
         pop_data = parser.raw_data[self.filenames[0]]
         prev_data = parser.raw_data[self.filenames[1]]
@@ -58,6 +74,8 @@ class RDTPrevAnalyzer(BaseAnalyzer):
     def finalize(self):
         print("")
 
+    # @classmethod
+    # def plot_comparison(self):
     def plot(self):
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
@@ -105,8 +123,12 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         # Look up catchment prevalence data from precomputed file:
         df = pd.read_csv(self.base + "data/mozambique/cleaned/catch_prevalence_coverage_weighted.csv")
         catch_prev_cov_weighted = np.array(df[catch])
+        df = pd.read_csv(self.base + "data/mozambique/cleaned/catch_prevalence_coverage_weighted_denom.csv")
+        cov_denom = np.array(df[catch])
         df = pd.read_csv(self.base + "data/mozambique/cleaned/catch_prevalence_pop_weighted.csv")
         catch_prev_pop_weighted = np.array(df[catch])
+        df = pd.read_csv(self.base + "data/mozambique/cleaned/catch_prevalence_pop_weighted_denom.csv")
+        pop_denom = np.array(df[catch])
 
 
         # global_round_dates = ["2012-06-18", "2012-08-29", "2012-11-03", "2013-06-09", "2013-08-11", "2013-10-08",
@@ -155,7 +177,13 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         #     plt.scatter(np.append(round_dates_array[:3],round_dates_array[5:]), np.append(catch_prev_pop_weighted[:3],catch_prev_pop_weighted[5:]), c='teal',edgecolors='black', marker='s',s=70, alpha=0.8,label='{}: Pop-weighted RDT+'.format(catch.capitalize()),zorder=20)
         #     plt.scatter(round_dates_array[3:5], catch_prev_pop_weighted[3:5], c='gray',edgecolors='black', marker='s',s=70,zorder=20) # , label='HFCA not in MDA round'
         # else:
-        plt.scatter(round_dates_array, catch_prev_pop_weighted, c='teal',edgecolors='black', marker='s', s=70, alpha=0.8,label='{}: Pop-weighted RDT+'.format(catch.capitalize()),zorder=20)
+        plt.scatter(round_dates_array, catch_prev_cov_weighted,
+                    c='teal',edgecolors='black', marker='s', alpha=0.8,
+                    label='{}: Pop-seen-weighted RDT+'.format(catch.capitalize()), s=cov_denom**0.6666, #s=70
+                    zorder=20)
+
+        for jj,txt in enumerate(cov_denom):
+            plt.annotate(txt,(round_dates_array[jj],catch_prev_cov_weighted[jj]),zorder=50)
 
         # For each round time-point, also plot the corresponding MDA-coverage-weighted (not full pop-weighted) RDT prevalence from the simulation:
 
@@ -208,7 +236,30 @@ if __name__=="__main__":
     # Calibration experiments:
     # am.add_experiment(retrieve_experiment("09829129-b00b-e811-9415-f0921c16b9e5")) #Mahel
     # am.add_experiment(retrieve_experiment("11cb8543-e20b-e811-9415-f0921c16b9e5")) #Motaze
-    am.add_experiment(retrieve_experiment("8853ca79-1c0c-e811-9415-f0921c16b9e5"))
+    # am.add_experiment(retrieve_experiment("8853ca79-1c0c-e811-9415-f0921c16b9e5"))
+
+    # am.add_experiment(retrieve_experiment("171711d2-a010-e811-9415-f0921c16b9e5")) #Caputine
+    # am.add_experiment(retrieve_experiment("632dd6f5-a610-e811-9415-f0921c16b9e5")) # Chicutso
+    # am.add_experiment(retrieve_experiment("ef6564ad-a110-e811-9415-f0921c16b9e5"))  # Mahel
+    # am.add_experiment(retrieve_experiment("fd4866f4-a310-e811-9415-f0921c16b9e5"))  # Mapulanguene
+    # am.add_experiment(retrieve_experiment("da1bccd2-a910-e811-9415-f0921c16b9e5"))  # Moine
+    # am.add_experiment(retrieve_experiment("7e10e1d1-a710-e811-9415-f0921c16b9e5"))  # Panjane
+
+    # am.add_experiment(retrieve_experiment("7e10e1d1-a710-e811-9415-f0921c16b9e5"))  # Panjane multi-dose
+
+
+
+    # am.add_experiment(retrieve_experiment("f335b9ab-1f12-e811-9415-f0921c16b9e5")) # Moine DONE
+    # am.add_experiment(retrieve_experiment("8731f656-2a12-e811-9415-f0921c16b9e5")) # Caputine iter6
+    # am.add_experiment(retrieve_experiment("f3ed1863-2b12-e811-9415-f0921c16b9e5"))  # Mahel iter2
+
+    # am.add_experiment(retrieve_experiment("62454c29-1212-e811-9415-f0921c16b9e5"))  # Panjane iter2
+
+    am.add_experiment(retrieve_experiment("354912fd-3612-e811-9415-f0921c16b9e5"))  # Motaze iter4
+    # am.add_experiment(retrieve_experiment("169df5ae-2b12-e811-9415-f0921c16b9e5"))  # Mapulanguene
+
+    # pbnb
+    # am.add_experiment(retrieve_experiment("002e8d2d-4e12-e811-9415-f0921c16b9e5"))  # Caputine
 
     am.add_analyzer(RDTPrevAnalyzer())
     am.analyze()
