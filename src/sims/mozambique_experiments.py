@@ -1,37 +1,63 @@
-from experiment_setup import COMPS_Experiment
+from experiment_setup import GriddedConfigBuilder
 
 import numpy as np
 
 from dtk.vector.species import set_species_param
 
-class Zambia_Experiment(COMPS_Experiment):
+from gridded_sim_general import *
+from experiment_setup import CatchmentDemographicsGenerator
+
+class MozambiqueExperiment(GriddedConfigBuilder):
+
     def __init__(self,
                  base,
                  exp_name,
-                 grid_pop_csv_file,
+                 catch,
+                 healthseek_fn=None,
+                 itn_fn=None,
+                 irs_fn=None,
+                 msat_fn=None,
+                 mda_fn=None,
+                 stepd_fn=None,
                  start_year=2001,
                  sim_length_years=19,
+                 immunity_mode="naive",
                  num_cores=12,
                  parser_location='HPC'):
 
+        self.catch = catch
+        self.region = "Mozambique"
+        self.larval_params_mode = ""
+
         # Migration:
-        self.migration_on = True
-        self.gravity_migr_params = np.array([7.50395776e-06, 9.65648371e-01, 9.65648371e-01, -1.10305489e+00])
+        # self.migration_on = True
+        # self.gravity_migr_params = np.array([7.50395776e-06, 9.65648371e-01, 9.65648371e-01, -1.10305489e+00])
+
+        catch_cells = ZambiaExperiment.find_cells_for_this_catchment(self.catch)
 
         super().__init__(base,
                          exp_name,
-                         grid_pop_csv_file,
+                         catch_cells,
+                         region="Zambia",
+                         healthseek_fn=healthseek_fn,
+                         itn_fn=itn_fn,
+                         irs_fn=irs_fn,
+                         msat_fn=msat_fn,
+                         mda_fn=mda_fn,
+                         stepd_fn=stepd_fn,
                          start_year=start_year,
                          sim_length_years=sim_length_years,
+                         immunity_mode=immunity_mode,
                          num_cores=num_cores,
                          parser_location=parser_location)
 
-        self.mozambique_setup()
+        self.zambia_setup()
 
         # Migration amplitude:
         self.cb.update_params({
             "x_Local_Migration": 4
         })
+
 
     def mozambique_setup(self):
         # Uses vector splines from Prashanth's Mozambique entomology calibration

@@ -32,42 +32,54 @@ from gridded_sim_general import *
 from grid_ids_to_nodes import generate_lookup
 from gen_migr_json import gen_gravity_links_json, save_link_rates_to_txt
 
+# from zambia_experiments import ZambiaExperiment
 
 
-class COMPS_Experiment:
+class GriddedConfigBuilder:
 
     def __init__(self,
                  base,
                  exp_name,
-                 grid_pop_csv_file,
-                 region='Zambia',
+                 desired_cells,
+                 region="Zambia",
+                 healthseek_fn=None,
+                 itn_fn=None,
+                 irs_fn=None,
+                 msat_fn=None,
+                 mda_fn=None,
+                 stepd_fn=None,
                  start_year=2001,
                  sim_length_years=19,
+                 immunity_mode="naive",
                  num_cores=12,
                  parser_location='HPC'):
 
         self.base = base
         self.exp_name = exp_name
         self.exp_base = base + 'data/COMPS_experiments/{}/'.format(exp_name)
-        self.grid_pop_csv_file = grid_pop_csv_file
-        self.region='Zambia'
+        self.desired_cells = desired_cells
+        self.region = region
         self.start_year = start_year
         self.sim_length_years = sim_length_years
+        self.immunity_mode = immunity_mode
         self.num_cores = num_cores
         self.parser_location = parser_location
 
+        self.healthseek_fn = healthseek_fn
+        self.itn_fn = itn_fn
+        self.irs_fn = irs_fn
+        self.msat_fn = msat_fn
+        self.mda_fn = mda_fn
+        self.stepd_fn = stepd_fn
 
-        # Ensure directories exist:
-        self.ensure_filesystem()
 
+        self.demo_fp_from_input = "Demographics/demo.json"
+        self.demo_fp_full = os.path.join(self.exp_base,self.demo_fp_from_input)
+
+        self.ensure_filesystem() # Need this to build config-builder
         # Build config-builder
-        self.cb = self.build_cb()
-        self.multinode_setup()
-        self.basic_malaria_sim_setup()
+        self.build_cb()
 
-
-    #################################################################################################
-    # BASIC SETUP (CONFIG BUILDER + DEMOGRAPHICS FILE)
 
     def ensure_filesystem(self):
         def ensure_dir(file_path):
@@ -77,12 +89,22 @@ class COMPS_Experiment:
 
         ensure_dir(self.exp_base)
         ensure_dir(self.exp_base + 'Demographics/')
+        # if self.immunity_mode != "naive":
         ensure_dir(self.exp_base + 'Immunity/')
         ensure_dir(self.exp_base + 'Climate/')
         ensure_dir(self.exp_base + 'Migration/')
         ensure_dir(self.exp_base + 'Logs/')
 
+    #################################################################################################
+    # CONFIG-BUILDER SETUP
+
     def build_cb(self):
+        self.cb = self.basic_cb()
+        self.spatial_cb_setup()
+        self.add_reporting_to_cb()
+        self.implement_dummy_healthseeking()
+
+    def basic_cb(self):
         SetupParser.default_block = self.parser_location
 
         cb = DTKConfigBuilder.from_defaults('MALARIA_SIM')
@@ -92,12 +114,10 @@ class COMPS_Experiment:
         # Tell config builder where to find dlls for specified Bamboo build of executable
         cb.set_dll_root(self.base + 'bin/')
 
-        self.cb.set_param("Num_Cores", self.num_cores)
+        cb.set_param("Num_Cores", self.num_cores)
         return cb
 
-    def multinode_setup(self, migration_on=True):
-        self.demo_fp_from_input = "Demographics/demo.json"
-        self.demo_fp_full = os.path.join(self.exp_base,self.demo_fp_from_input)
+    def spatial_cb_setup(self, migration_on=True):
         self.cb.update_params({'Demographics_Filenames': [self.demo_fp_from_input]})
 
         if self.immunity_mode != "naive":
@@ -106,33 +126,29 @@ class COMPS_Experiment:
             self.cb.update_params({'Demographics_Filenames': [self.demo_fp_from_input, self.immun_fp_from_input]})
 
 
-
-        #######################################################################################################
-        # CLIMATE-RELATED PARAMETERS:
-        #######################################################################################################
+        # CLIMATE
         self.cb.update_params({
             'Air_Temperature_Filename': "Climate/{}_30arcsec_air_temperature_daily.bin".format(self.region),
             'Land_Temperature_Filename': "Climate/{}_30arcsec_air_temperature_daily.bin".format(self.region),
             'Rainfall_Filename': "Climate/{}_30arcsec_rainfall_daily.bin".format(self.region),
             'Relative_Humidity_Filename': "Climate/{}_30arcsec_relative_humidity_daily.bin".format(self.region)
         })
-
         #######################################################################################################
         # MIGRATION-RELATED PARAMETERS:
         #######################################################################################################
         if migration_on:
             self.cb.update_params({
-                                    'Migration_Model': 'FIXED_RATE_MIGRATION',
-                                    'Local_Migration_Filename': 'Migration/local_migration.bin', # note that underscore prior 'migration.bin' is required for legacy reasons that need to be refactored...
-                                    'Enable_Local_Migration':1,
-                                    'Migration_Pattern': 'SINGLE_ROUND_TRIPS', # human migration
-                                    'Local_Migration_Roundtrip_Duration': 2, # mean of exponential days-at-destination distribution
-                                    'Local_Migration_Roundtrip_Probability': 0.95, # fraction that return
+                                'Migration_Model': 'FIXED_RATE_MIGRATION',
+                                'Local_Migration_Filename': 'Migration/local_migration.bin', # note that underscore prior 'migration.bin' is required for legacy reasons that need to be refactored...
+                                'Enable_Local_Migration':1,
+                                'Migration_Pattern': 'SINGLE_ROUND_TRIPS', # human migration
+                                'Local_Migration_Roundtrip_Duration': 2, # mean of exponential days-at-destination distribution
+                                'Local_Migration_Roundtrip_Probability': 0.95, # fraction that return
             })
         else:
             self.cb.update_params({'Migration_Model': 'NO_MIGRATION'})  #'NO_MIGRATION' is actually default for MALARIA_SIM, but might as well make sure it's off
 
-    def basic_malaria_sim_setup(self, record_events=False):
+    def add_reporting_to_cb(self, record_events=False):
 
         # Miscellaneous:
         self.cb.set_param("Enable_Demographics_Other", 1)
@@ -196,7 +212,6 @@ class COMPS_Experiment:
         add_summary_report(self.cb)
 
         # Basic health-seeking
-        self.implement_dummy_healthseeking()
 
     #################################################################################################
     # REGION-SPECIFIC PARAMETERS
@@ -285,8 +300,7 @@ class COMPS_Experiment:
         nodeid_lookup,pop_lookup = generate_lookup(self.demo_fp_full)
 
         # Restrict to catchment of interest
-        catch_cells = find_cells_for_this_catchment(self.catch, path_from_base="data/mozambique/grid_lookup.csv")
-        healthseek_events = healthseek_events[np.in1d(healthseek_events['grid_cell'],catch_cells)]
+        healthseek_events = healthseek_events[np.in1d(healthseek_events['grid_cell'],self.desired_cells)]
         healthseek_events.reset_index(inplace=True)
 
         for hs in range(len(healthseek_events)):
@@ -328,62 +342,58 @@ class COMPS_Experiment:
         self.cb.params['Disable_IP_Whitelist'] = 1
 
         # Event information files
-        if self.itn_fn == None:
-            itn_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_itn_events.csv'
+        if not self.itn_fn:
+            if include_itn:
+                print("WARNING: CANNOT IMPLEMENT ITN INTERVENTION WITHOUT itn_fn SUPPLIED!")
+            include_itn = False
         else:
-            itn_event_file = self.itn_fn
+            itn_events = pd.read_csv(self.itn_fn)
+            itn_events['simday'] = [convert_to_day(x, start_date, date_format) for x in itn_events.fulldate]
+            itn_events = itn_events[np.in1d(itn_events['grid_cell'], self.desired_cells)]
+            itn_events.reset_index(inplace=True)
 
-        if self.irs_fn == None:
-            irs_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_irs_events.csv'
+        if not self.irs_fn:
+            if include_irs:
+                print("WARNING: CANNOT IMPLEMENT IRS INTERVENTION WITHOUT irs_fn SUPPLIED!")
+            include_irs = False
         else:
-            irs_event_file = self.irs_fn
+            irs_events = pd.read_csv(self.irs_fn)
+            irs_events['simday'] = [convert_to_day(x, start_date, date_format) for x in irs_events.fulldate]
+            irs_events = irs_events[np.in1d(irs_events['grid_cell'], self.desired_cells)]
+            irs_events.reset_index(inplace=True)
 
-        if self.msat_fn == None:
-            msat_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_msat_events.csv'
+        if not self.msat_fn:
+            if include_msat:
+                print("WARNING: CANNOT IMPLEMENT MSAT INTERVENTION WITHOUT msat_fn SUPPLIED!")
+            include_msat = False
         else:
-            msat_event_file = self.msat_fn
+            msat_events = pd.read_csv(self.msat_fn)
+            msat_events['simday'] = [convert_to_day(x, start_date, date_format) for x in msat_events.fulldate]
+            msat_events = msat_events[np.in1d(msat_events['grid_cell'], self.desired_cells)]
+            msat_events.reset_index(inplace=True)
 
-        if self.mda_fn == None:
-            mda_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_mda_events.csv'
+        if not self.mda_fn:
+            if include_mda:
+                print("WARNING: CANNOT IMPLEMENT MDA INTERVENTION WITHOUT mda_fn SUPPLIED!")
+            include_mda = False
         else:
-            mda_event_file = self.mda_fn
+            mda_events = pd.read_csv(self.mda_fn)
+            mda_events['simday'] = [convert_to_day(x, start_date, date_format) for x in mda_events.fulldate]
+            mda_events = mda_events[np.in1d(mda_events['grid_cell'], self.desired_cells)]
+            mda_events.reset_index(inplace=True)
 
-        if self.stepd_fn == None:
-            stepd_event_file = self.base + 'data/interventions/chiyabi/gridded-uniform/grid_chiyabi_hfca_stepd_events.csv'
+        if not self.stepd_fn:
+            if include_stepd:
+                print("WARNING: CANNOT IMPLEMENT STEPD INTERVENTION WITHOUT stepd_fn SUPPLIED!")
+            include_stepd = False
         else:
-            stepd_event_file = self.stepd_fn
+            stepd_events = pd.read_csv(self.stepd_fn)
+            stepd_events['simday'] = [convert_to_day(x, start_date, date_format) for x in stepd_events.fulldate]
+            stepd_events = stepd_events[np.in1d(stepd_events['grid_cell'], self.desired_cells)]
+            stepd_events.reset_index(inplace=True)
 
-        # Import event info
-        itn_events = pd.read_csv(itn_event_file)
-        irs_events = pd.read_csv(irs_event_file)
-        msat_events = pd.read_csv(msat_event_file)
-        mda_events = pd.read_csv(mda_event_file)
-        stepd_events = pd.read_csv(stepd_event_file)
-
-
-        # Compute simulation days relative to start date or use default in file
-        itn_events['simday'] = [convert_to_day(x, start_date, date_format) for x in itn_events.fulldate]
-        irs_events['simday'] = [convert_to_day(x, start_date, date_format) for x in irs_events.fulldate]
-        msat_events['simday'] = [convert_to_day(x, start_date, date_format) for x in msat_events.fulldate]
-        mda_events['simday'] = [convert_to_day(x, start_date, date_format) for x in mda_events.fulldate]
-        stepd_events['simday'] = [convert_to_day(x, start_date, date_format) for x in stepd_events.fulldate]
-
-        # Restrict to catchment of interest
-        catch_cells = find_cells_for_this_catchment(self.catch,path_from_base="data/mozambique/grid_lookup.csv")
-        itn_events = itn_events[np.in1d(itn_events['grid_cell'], catch_cells)]
-        irs_events = irs_events[np.in1d(irs_events['grid_cell'], catch_cells)]
-        if include_msat: msat_events = msat_events[np.in1d(msat_events['grid_cell'], catch_cells)]
-        if include_mda: mda_events = mda_events[np.in1d(mda_events['grid_cell'], catch_cells)]
-        if include_stepd: stepd_events = stepd_events[np.in1d(stepd_events['grid_cell'], catch_cells)]
-
-        itn_events.reset_index(inplace=True)
-        irs_events.reset_index(inplace=True)
-        msat_events.reset_index(inplace=True)
-        mda_events.reset_index(inplace=True)
-        stepd_events.reset_index(inplace=True)
 
         # Get grid cell to node ID lookup table:
-        from grid_ids_to_nodes import generate_lookup
         nodeid_lookup,pop_lookup = generate_lookup(self.demo_fp_full)
 
 
@@ -430,7 +440,6 @@ class COMPS_Experiment:
                         initial_killing=float(irs_events['killing'][irs]), duration=float(irs_events['duration'][irs]),
                         nodeIDs=[nodeid_lookup[irs_events['grid_cell'][irs]]])
 
-
         if include_msat:
             for msat in range(len(msat_events)):
                     add_drug_campaign(cb, campaign_type='MSAT', drug_code='AL',
@@ -465,156 +474,8 @@ class COMPS_Experiment:
                 "StepD": include_stepd}
 
 
-
-    def gen_demo_file(self,input_csv,larval_params=None):
-        dg = CatchmentDemographicsGenerator.from_file(self.cb, input_csv, catch=self.catch)
-        demo_dict = dg.generate_demographics()
-
-        # Add catchment name to demographics file metadata:
-        demo_dict["Metadata"]["Catchment"] = self.catch
-
-        # Add larval habitat parameters to demographics file:
-        # if self.larval_params_mode != "calibrate":
-        demo_dict = self.add_larval_habitats_to_demo(demo_dict, larval_params=larval_params)
-
-        if larval_params:
-            temp_h = larval_params['temp_h']
-            linear_h = larval_params['linear_h']
-            # demo_fp = self.exp_base + "Demographics/demo_temp{}_linear{}.json".format(int(temp_h),int(linear_h))
-            demo_fp = self.exp_base + "Demographics/demo.json"
-        else:
-            demo_fp = self.exp_base + "Demographics/demo.json"
-
-        demo_f = open(demo_fp, 'w+')
-        json.dump(demo_dict, demo_f, indent=4)
-        demo_f.close()
-
-
     #################################################################################################
-    # LARVAL PARAMETER-RELATED FUNCTIONS:
-    def add_larval_habitats_to_demo(self, demo_dict, nodeset='all', larval_params=None):
-        # Add larval habitat multipliers to demographics file
-
-        def add_larval_habitat_to_node(node_item, const_h,temp_h,water_h,linear_h):
-            calib_single_node_pop = 1000  # for Zambia
-
-            # This is now done in the demographics generator itself:
-            # birth_rate = (float(node_item['NodeAttributes']['InitialPopulation']) / (1000 + 0.0)) * 0.12329
-            # node_item['NodeAttributes']['BirthRate'] = birth_rate
-
-            pop_multiplier = float(node_item['NodeAttributes']['InitialPopulation']) / (calib_single_node_pop + 0.0)
-
-            temp_multiplier = temp_h * pop_multiplier
-            linear_multiplier = linear_h * pop_multiplier
-            const_multiplier = const_h * pop_multiplier # NOTE: Pre 1/24/2018, this was not set to scale with population
-            water_multiplier = water_h * pop_multiplier
-
-            node_item['NodeAttributes']['LarvalHabitatMultiplier'] = {
-                # "CONSTANT": const_multiplier,
-                # "TEMPORARY_RAINFALL": temp_multiplier,
-                # "WATER_VEGETATION": water_multiplier,
-                "LINEAR_SPLINE": linear_multiplier
-            }
-
-
-        if self.larval_params_mode=='milen':
-            # get grid cells from pop csv file:
-            # for those grid cells, get corresponding arab/funest params
-            # loop over nodes [order will correspond, by construction, to pop csv ordering]
-            # give each node the corresponding larval params
-
-            # Load pop csv file to get grid cell numbers:
-            # pop_df = pd.read_csv(self.grid_pop_csv_file)
-            # grid_cells = np.array(pop_df['node_label'])
-            catch_cells = find_cells_for_this_catchment(self.catch, path_from_base="data/mozambique/grid_lookup.csv")
-
-            # From those grid cells, and the Milen-clusters they correspond to, get best-fit larval habitat parameters
-            arab_params,funest_params = find_milen_larval_param_fit_for_grid_cells(grid_cells,fudge_milen_habitats=self.fudge_milen_habitats)
-
-            # Loop over nodes in demographics file (which will, by construction, correspond to the grid pop csv ordering)
-            i = 0
-            for node_item in demo_dict['Nodes']:
-                # if larval_params:
-                #     const_h = larval_params['const_h']
-                #     temp_h = larval_params['temp_h']
-                #     water_h = larval_params['water_h']
-                #     linear_h = larval_params['linear_h']
-                # else:
-                const_h = 1.
-                temp_h = arab_params[i]
-                water_h = 1.
-                linear_h = funest_params[i]
-
-                add_larval_habitat_to_node(node_item,const_h,temp_h,water_h,linear_h)
-
-                i += 1
-
-        elif self.larval_params_mode=='uniform':
-            if larval_params:
-                const_h = larval_params['const_h']
-                temp_h = larval_params['temp_h']
-                water_h = larval_params['water_h']
-                linear_h = larval_params['linear_h']
-            else:
-                const_h = 1.
-                temp_h = 122.
-                water_h = 1.
-                linear_h = 97.
-
-            for node_item in demo_dict['Nodes']:
-                add_larval_habitat_to_node(node_item,const_h,temp_h,water_h,linear_h)
-
-
-        elif self.larval_params_mode=='calibrate':
-            for node_item in demo_dict['Nodes']:
-                add_larval_habitat_to_node(node_item,1,1,1,1)
-
-        return demo_dict
-
-    def larval_param_sweeper(self,cb,temp_h,linear_h):
-        larval_params = {
-            "const_h": 1.,
-            "water_h": 1.,
-            "temp_h": np.float(temp_h),
-            "linear_h": np.float(linear_h)
-        }
-
-        # Will need new demographics file that incorporates these larval parameters.
-        # demographics filename example: Demographics/MultiNode/demo_temp50_linear120.json
-        new_demo_fp_from_input = self.demo_fp_from_input[:-5] + "_temp{}_linear{}.json".format(temp_h, linear_h)
-
-        # Check if demographics file for these parameters already exists.  If not, create it
-        if not os.path.isfile(new_demo_fp_from_input):
-            self.gen_demo_file(self.grid_pop_csv_file,larval_params=larval_params)
-
-        # Then pass this demographics file to the config_builder.
-        if self.immunity_mode == "naive":
-            self.cb.update_params({'Demographics_Filenames': [new_demo_fp_from_input]})
-        else:
-            self.cb.update_params({'Demographics_Filenames': [new_demo_fp_from_input, self.immun_fp_from_input]})
-
-
-        return larval_params
-
-    #################################################################################################
-    # MIGRATION-RELATED FUNCTIONS:
-    def gen_migration_files(self):
-        migr_json_fp = self.exp_base + "Migration/grav_migr_rates.json"
-
-        migr_dict = gen_gravity_links_json(self.demo_fp_full, self.gravity_migr_params, outf=migr_json_fp)
-        rates_txt_fp = self.exp_base + "Migration/grav_migr_rates.txt"
-
-        save_link_rates_to_txt(rates_txt_fp, migr_dict)
-
-        # Generate migration binary:
-        migration_filename = self.cb.get_param('Local_Migration_Filename')
-        print("migration_filename: ",migration_filename)
-        MigrationGenerator.link_rates_txt_2_bin(rates_txt_fp,
-                                                self.exp_base+migration_filename)
-
-        # Generate migration header:
-        MigrationGenerator.save_migration_header(self.demo_fp_full,
-                                                 self.exp_base +'Migration/local_migration.bin.json')
+    # ONCE CB IS BUILT, FUNCTIONS FOR WHAT TO DO WITH IT
 
     def vector_migration_sweeper(self, vector_migration_on):
         if vector_migration_on:
@@ -635,43 +496,12 @@ class COMPS_Experiment:
             })
         return {"vec_migr": vector_migration_on}
 
-    #################################################################################################
-
-    def file_setup(self,generate_immunity_file=True,generate_demographics_file=True,generate_climate_files=True,generate_migration_files=True,larval_params=None):
-
-        if generate_demographics_file:
-            print("Generating demographics file...")
-            self.gen_demo_file(self.grid_pop_csv_file,larval_params=larval_params)
-
-        if generate_immunity_file:
-            print("Generating immunity files...")
-            if self.immunity_mode == "uniform":
-                self.get_immunity_file_from_single_node()
-            elif self.immunity_mode == "milen":
-                self.gen_immunity_file_from_milen_clusters()
-
-        if generate_migration_files:
-            print("Generating migration files...")
-            self.gen_migration_files()
-
-        if generate_climate_files:
-            print("Generating climate files...")
-            SetupParser.init()
-            [cg_start_year,cg_duration] = safe_start_year_duration_for_climate_generator(self.start_year,self.sim_length_years)
-            cg = ClimateGenerator(self.demo_fp_full,
-                                  self.exp_base + 'Logs/climate_wo.json',
-                                  self.exp_base + 'Climate/',
-                                  start_year = str(cg_start_year),
-                                  num_years = str(cg_duration),
-                                  climate_project = "IDM-{}".self.region,
-                                  resolution=str(0))
-
-            cg.generate_climate_files()
-
-
-
-    def submit_experiment(self,num_seeds=1,intervention_sweep=False,larval_sweep=False,migration_sweep=False,vector_migration_sweep=False,
-                          simple_intervention_sweep=True,custom_name=None):
+    def submit_experiment(self,num_seeds=1,
+                          intervention_sweep=False,
+                          migration_sweep=False,
+                          vector_migration_sweep=False,
+                          simple_intervention_sweep=False,
+                          custom_name=None):
 
         # Implement the actual (not dummy) baseline healthseeking
         self.implement_baseline_healthseeking()
@@ -683,14 +513,8 @@ class COMPS_Experiment:
             new_modlist = [ModFn(DTKConfigBuilder.set_param, 'Run_Number', seed) for seed in range(num_seeds)]
             modlists.append(new_modlist)
 
-        if larval_sweep:
-            new_modlist = [ModFn(self.larval_param_sweeper, temp_h, linear_h)
-                           for temp_h in [61,122,244]
-                           for linear_h in [48, 97, 194]]
-            modlists.append(new_modlist)
-
         if migration_sweep:
-            new_modlist = [ModFn(DTKConfigBuilder.set_param, 'x_Local_Migration', x) for x in [0.5,1,2,5]]
+            new_modlist = [ModFn(DTKConfigBuilder.set_param, 'x_Local_Migration', x) for x in [0.5,1,5,10]]
             modlists.append(new_modlist)
 
         if vector_migration_sweep:
@@ -708,33 +532,8 @@ class COMPS_Experiment:
             ]
             modlists.append(new_modlist)
         else:
-            # new_modlist = [ModFn(self.implement_interventions, True, True, True, True, True)]
-            new_modlist = [ModFn(self.implement_interventions, True, True, False, True, False)]
+            new_modlist = [ModFn(self.implement_interventions, True, True, True, True, True)]
             modlists.append(new_modlist)
-
-
-
-        # if intervention_sweep:
-        #     # Interventions to turn on or off
-        #     include_itn_list = [True, False]
-        #     include_irs_list = [True, False]
-        #     include_mda_list = [True, False]
-        #     include_msat_list = [True, False]
-        #     include_stepd_list = [True, False]
-        #
-        #     new_modlist = [
-        #         ModFn(self.implement_interventions, use_itn, use_irs, use_msat, use_mda, use_stepd)
-        #         for use_itn in include_itn_list
-        #         for use_irs in include_irs_list
-        #         for use_mda in include_mda_list
-        #         for use_msat in include_msat_list
-        #         for use_stepd in include_stepd_list
-        #     ]
-        #
-        # else:
-        #     new_modlist = [ModFn(self.implement_interventions, True, True, True, True, True)]
-        # modlists.append(new_modlist)
-
 
         builder = ModBuilder.from_combos(*modlists)
 
@@ -747,42 +546,190 @@ class COMPS_Experiment:
         # SetupParser.set("HPC","priority","Normal")
         exp_manager = ExperimentManagerFactory.init()
         exp_manager.run_simulations(config_builder=self.cb, exp_name=run_name, exp_builder=builder)
+        return self.cb
 
-
-    ################################################################################################################
-
-    def return_cb_for_calibration(self):
+    def return_cb_with_interventions(self,
+                                     include_itn=False,
+                                     include_irs=False,
+                                     include_msat=False,
+                                     include_mda=False,
+                                     include_stepd=False):
         self.implement_baseline_healthseeking()
-        self.implement_interventions(self.cb,True, True, True, True, True)
+        self.implement_interventions(self.cb, include_itn, include_irs, include_msat, include_mda, include_stepd)
         return self.cb
 
 
 
+class GriddedInputFilesCreator:
+    def __init__(self,
+                 base,
+                 exp_name,
+                 desired_cells,
+                 cb,
+                 grid_pop_csv_file,
+                 region="Zambia",
+                 start_year=2001,
+                 sim_length_years=19,
+                 immunity_mode="naive",
+                 larval_param_func=None):
+
+        self.base = base
+        self.exp_name = exp_name
+        self.exp_base = base + 'data/COMPS_experiments/{}/'.format(exp_name)
+        self.demo_fp_full = os.path.join(self.exp_base, "Demographics/demo.json")
+
+        self.desired_cells = desired_cells
+        self.cb = cb
+        self.grid_pop_csv_file = grid_pop_csv_file
+        self.immunity_mode = immunity_mode
+        self.region = region
+        self.start_year = start_year
+        self.sim_length_years = sim_length_years
+        self.larval_param_func = larval_param_func
+
+        self.gravity_migr_params = np.array([7.50395776e-06, 9.65648371e-01, 9.65648371e-01, -1.10305489e+00])
+
+        self.file_setup()
+
+
+
+    def file_setup(self,generate_immunity_file=True,generate_demographics_file=True,generate_climate_files=True,generate_migration_files=True):
+
+        if generate_demographics_file:
+            print("Generating demographics file...")
+            self.gen_demo_file()
+
+        # if self.immunity_mode != "naive" and generate_immunity_file:
+        #     print("Generating immunity files...")
+        #     if self.immunity_mode == "uniform":
+        #         self.get_immunity_file_from_single_node()
+        #     elif self.immunity_mode == "milen":
+        #         self.gen_immunity_file_from_milen_clusters()
+
+        if generate_migration_files:
+            print("Generating migration files...")
+            self.gen_migration_files()
+
+        if generate_climate_files:
+            print("Generating climate files...")
+            SetupParser.init()
+            [cg_start_year,cg_duration] = safe_start_year_duration_for_climate_generator(self.start_year,self.sim_length_years)
+
+            print("Start year given to climate generator = {}".format(cg_start_year))
+            print("Duration given to climate generator = {}".format(cg_duration))
+
+            cg = ClimateGenerator(self.demo_fp_full,
+                                  self.exp_base + 'Logs/climate_wo.json',
+                                  self.exp_base + 'Climate/',
+                                  start_year = str(cg_start_year),
+                                  num_years = str(cg_duration),
+                                  climate_project = "IDM-{}".format(self.region),
+                                  resolution=str(0))
+
+            cg.generate_climate_files()
+
+
+    def gen_demo_file(self):
+        dg = CatchmentDemographicsGenerator.from_file_subset(self.cb, self.grid_pop_csv_file, self.desired_cells)
+        demo_dict = dg.generate_demographics()
+
+        # Add catchment name to demographics file metadata:
+        # demo_dict["Metadata"]["Catchment"] = self.catch
+
+        # Add larval habitat parameters to demographics file:
+        # if self.larval_params_mode != "calibrate":
+        demo_dict = self.add_larval_habitats_to_demo(demo_dict)
+
+        # if self.larval_params:
+        #     temp_h = self.larval_params['temp_h']
+        #     linear_h = self.larval_params['linear_h']
+        #     # demo_fp = self.exp_base + "Demographics/demo_temp{}_linear{}.json".format(int(temp_h),int(linear_h))
+        #     demo_fp = self.exp_base + "Demographics/demo.json"
+        # else:
+        demo_fp = self.exp_base + "Demographics/demo.json"
+
+        demo_f = open(demo_fp, 'w+')
+        json.dump(demo_dict, demo_f, indent=4)
+        demo_f.close()
+
+    def add_larval_habitat_multiplier_to_node(self,node_item, larval_param_dict_this_node):
+        calib_single_node_pop = 1000.
+        pop_multiplier = float(node_item['NodeAttributes']['InitialPopulation']) / (calib_single_node_pop)
+
+        # Copy the larval param dict handed to this node
+        node_item['NodeAttributes']['LarvalHabitatMultiplier'] = larval_param_dict_this_node.copy()
+
+        # Then scale each entry in the dictionary by the population multiplier
+        for key in node_item['NodeAttributes']['LarvalHabitatMultiplier'].keys():
+            node_item['NodeAttributes']['LarvalHabitatMultiplier'][key] *= pop_multiplier
+
+
+    def larval_params_func_for_calibration(self, grid_cells):
+        return {"CONSTANT": np.ones_like(grid_cells),
+                "TEMPORARY_RAINFALL": np.ones_like(grid_cells),
+                "LINEAR_SPLINE": np.ones_like(grid_cells),
+                "WATER_VEGETATION": np.ones_like(grid_cells)}
+
+
+
+    def add_larval_habitats_to_demo(self, demo_dict):
+        # Add larval habitat multipliers to demographics file
+        # Uses self.larval_params_func
+
+        # This function takes as input grid_cells, and returns a dictionary:
+        # {"CONSTANT": [1,2,1,5,...],
+        #  "WATER_VEGETATION": etc., }
+        # where the list is the multiplier for each node.
+
+        if not self.larval_param_func:
+            # Default function, if none is supplied, is the one used for calibration
+            self.larval_param_func = self.larval_params_func_for_calibration
+
+        larval_param_multiplier_dict = self.larval_param_func(self.desired_cells)
+
+        larval_param_name_list = list(larval_param_multiplier_dict)
+        n_params = len(larval_param_name_list)
+
+        ni = 0
+        for node_item in demo_dict['Nodes']:
+            larval_param_dict_this_node = {}
+
+            for jj in range(n_params):
+                lp_name = larval_param_name_list[jj]
+                larval_param_dict_this_node[lp_name] = larval_param_multiplier_dict[lp_name][jj]
+
+            self.add_larval_habitat_multiplier_to_node(node_item, larval_param_dict_this_node)
+
+            ni += 1
+
+        return demo_dict
+
+
+    def gen_migration_files(self):
+        migr_json_fp = self.exp_base + "Migration/grav_migr_rates.json"
+
+        migr_dict = gen_gravity_links_json(self.demo_fp_full, self.gravity_migr_params, outf=migr_json_fp)
+        rates_txt_fp = self.exp_base + "Migration/grav_migr_rates.txt"
+
+        save_link_rates_to_txt(rates_txt_fp, migr_dict)
+
+        # Generate migration binary:
+        migration_filename = self.cb.get_param('Local_Migration_Filename')
+        print("migration_filename: ",migration_filename)
+        MigrationGenerator.link_rates_txt_2_bin(rates_txt_fp,
+                                                self.exp_base+migration_filename)
+
+        # Generate migration header:
+        MigrationGenerator.save_migration_header(self.demo_fp_full,
+                                                 self.exp_base +'Migration/local_migration.bin.json')
+
 
 
 class CatchmentDemographicsGenerator(DemographicsGenerator):
-    DEFAULT_RESOLUTION = 30
-    #
-    # def __init__(self, cb, nodes, demographics_type='static', res_in_arcsec=DEFAULT_RESOLUTION,
-    #              update_demographics=None, default_pop=1000):
-    #     super(CatchmentDemographicsGenerator, self).__init__(cb,
-    #                                                          nodes,
-    #                                                          demographics_type=demographics_type,
-    #                                                          res_in_arcsec=res_in_arcsec,
-    #                                                          update_demographics=update_demographics,
-    #                                                          default_pop=default_pop)
 
     @classmethod
-    def from_file(cls, cb, population_input_file, catch='all',demographics_type='static', res_in_arcsec=DEFAULT_RESOLUTION,
-                  update_demographics=None, default_pop=1000):
-
-
-        if False: # for Zambia
-            # Added by Josh 11/2017: Restrict to specific cells which are in desired catchment:
-            catch_cells = find_cells_for_this_catchment(catch)
-        else:
-            catch_cells = find_cells_for_this_catchment(catch,path_from_base="data/mozambique/grid_lookup.csv")
-
+    def from_file_subset(cls, cb, population_input_file, desired_cells,demographics_type='static', res_in_arcsec=30,
+                         update_demographics=None, default_pop=1000):
 
         nodes_list = list()
         with open(population_input_file, 'r') as pop_csv:
@@ -803,47 +750,8 @@ class CatchmentDemographicsGenerator(DemographicsGenerator):
                 # Population
                 pop = int(float(row['pop'])) if 'pop' in row else default_pop
 
-                if int(node_label) in catch_cells:
+                if int(node_label) in desired_cells:
                     # Append the newly created node to the list
                     nodes_list.append(Node(lat, lon, pop, node_label))
 
         return cls(cb, nodes_list, demographics_type, res_in_arcsec, update_demographics, default_pop)
-
-#                 larval_params_mode='uniform',
-#                  immunity_mode='uniform',
-
-# migration_on = True,
-# gravity_migr_params = np.array([7.50395776e-06, 9.65648371e-01, 9.65648371e-01, -1.10305489e+00]),
-
-        # def zambia_setup(catch='all')
-# def mozambique_setup
-
-# def africa_infection_params()
-
-
-        # self.base = base
-        # self.exp_name = exp_name
-        # self.exp_base = base + 'data/COMPS_experiments/{}/'.format(exp_name)
-        # self.catch = catch
-        # self.grid_pop_csv_file = grid_pop_csv_file
-        # self.imm_1node_fp = imm_1node_fp
-        # self.larval_params_mode = larval_params_mode
-        # self.immunity_mode = immunity_mode
-        #
-        # self.migration_on = migration_on
-        # self.gravity_migr_params = gravity_migr_params
-        # self.rcd_people_num = rcd_people_num
-        #
-        # self.start_year = start_year
-        # self.sim_length_years = sim_length_years
-        #
-        # self.num_cores = num_cores
-        #
-        # self.healthseek_fn = healthseek_fn
-        # self.itn_fn = itn_fn
-        # self.irs_fn = irs_fn
-        # self.msat_fn = msat_fn
-        # self.mda_fn = mda_fn
-        # self.stepd_fn = stepd_fn
-        #
-        # self.fudge_milen_habitats = fudge_milen_habitats
