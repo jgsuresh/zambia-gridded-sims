@@ -255,6 +255,7 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         pops = np.array(data_df["N"])
 
         supersimple = np.abs(np.sum(pops*ref_data)-np.sum(pops*sim_data))
+        improved = np.abs(np.sum(pops*pops*ref_data)-np.sum(pops*pops*sim_data))
 
         # mse = np.sum(pops * (sim_data - ref_data)**2.)/np.sum(pops)
         # # mse = np.sum(pops**2 * (sim_data - ref_data) ** 2.) / np.sum(pops**2)
@@ -263,7 +264,7 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         #
         # # return mse
         # return mse_sqrt
-        return supersimple
+        return improved
 
     # @classmethod
     # def plot_comparison(cls, fig, data, **kwargs):

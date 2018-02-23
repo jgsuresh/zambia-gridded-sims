@@ -40,7 +40,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         # if sim_metadata["__sample_index__"] == 12:  # Motaze iter1
         # if sim_metadata["__sample_index__"] == 20:  # Mapa
         # if sim_metadata["__sample_index__"] == 60:  # pbnb
-        if sim_metadata["__sample_index__"] == 16:
+        if sim_metadata["__sample_index__"] == 11:
             return True
         else:
             return False
