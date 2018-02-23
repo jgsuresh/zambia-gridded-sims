@@ -7,12 +7,12 @@ from experiment_setup import GriddedInputFilesCreator
 from simtools.SetupParser import SetupParser
 
 
-run_mode = 0
-priority = "Normal"
+run_mode = 1
+priority = "BelowNormal"
 coreset = "emod_abcd"
-parser_location = "LOCAL" #"HPC"
+parser_location = "HPC"
 num_cores = 12
-mozamb_catch_list = []
+mozamb_catch_list = ["Caputine","Mahel","Panjane","Mapulanguene","Chicutso","Moine","Motaze","Chichuco","Facazissa","Magude-Sede"]
 catch = mozamb_catch_list[0]
 
 
@@ -60,7 +60,8 @@ if run_mode == 0:
                                             region=mozamb_exp.region,
                                             start_year=start_year,
                                             sim_length_years=num_years,
-                                            immunity_mode="naive"
+                                            immunity_mode="naive",
+                                            larval_param_func=mozamb_exp.larval_params_func_for_calibration
                                             )
 
 if __name__ == "__main__":

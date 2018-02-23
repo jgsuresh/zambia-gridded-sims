@@ -177,13 +177,14 @@ class GriddedConfigBuilder:
 
 
         # Event recording:
+
+        intervene_events_list = ["Bednet_Got_New_One","Bednet_Using","Bednet_Discarded"]
+        migration_events_list = ["Immigrating", "Emigrating"]
+        # case_events_list = ["NewClinicalCase",
+
+        full_events_list = intervene_events_list # migration events too verbose
+
         if record_events:
-            intervene_events_list = ["Bednet_Got_New_One","Bednet_Using","Bednet_Discarded"]
-            migration_events_list = ["Immigrating", "Emigrating"]
-            # case_events_list = ["NewClinicalCase",
-
-            full_events_list = intervene_events_list # migration events too verbose
-
             self.cb.update_params({
                 "Report_Event_Recorder": 1,
                 "Report_Event_Recorder_Ignore_Events_In_List": 0,
@@ -192,7 +193,10 @@ class GriddedConfigBuilder:
             })
         else:
             self.cb.update_params({
-                "Report_Event_Recorder": 0
+                "Report_Event_Recorder_Ignore_Events_In_List": 0,
+                "Listed_Events": full_events_list,
+                "Report_Event_Recorder_Events": [],
+                "Report_Event_Recorder": 1
             })
 
 
@@ -457,8 +461,9 @@ class GriddedConfigBuilder:
                                       nodes=[nodeid_lookup[mda_events['grid_cell'][mda]]])
 
         if include_stepd:
+            rcd_people_num = 10 #FIXME should not be hardcoded?
             for sd in range(len(stepd_events)):
-                cov = np.min([1.,float(self.rcd_people_num) / float(pop_lookup[stepd_events['grid_cell'][sd]])])
+                cov = np.min([1.,float(rcd_people_num) / float(pop_lookup[stepd_events['grid_cell'][sd]])])
                 add_drug_campaign(cb, campaign_type='rfMDA', drug_code='AL',
                                   start_days=[float(stepd_events['simday'][sd])],
                                   # coverage=float(stepd_events['coverage'][sd]),

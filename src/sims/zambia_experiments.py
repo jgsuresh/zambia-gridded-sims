@@ -28,7 +28,6 @@ class ZambiaExperiment(GriddedConfigBuilder):
                  parser_location='HPC'):
 
         self.catch = catch
-        self.region = "Zambia"
 
         # Migration:
         # self.migration_on = True

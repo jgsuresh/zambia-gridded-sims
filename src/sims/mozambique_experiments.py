@@ -26,19 +26,17 @@ class MozambiqueExperiment(GriddedConfigBuilder):
                  parser_location='HPC'):
 
         self.catch = catch
-        self.region = "Mozambique"
-        self.larval_params_mode = ""
 
         # Migration:
         # self.migration_on = True
         # self.gravity_migr_params = np.array([7.50395776e-06, 9.65648371e-01, 9.65648371e-01, -1.10305489e+00])
 
-        catch_cells = ZambiaExperiment.find_cells_for_this_catchment(self.catch)
+        catch_cells = MozambiqueExperiment.find_cells_for_this_catchment(self.catch)
 
         super().__init__(base,
                          exp_name,
                          catch_cells,
-                         region="Zambia",
+                         region="Mozambique",
                          healthseek_fn=healthseek_fn,
                          itn_fn=itn_fn,
                          irs_fn=irs_fn,
@@ -51,7 +49,7 @@ class MozambiqueExperiment(GriddedConfigBuilder):
                          num_cores=num_cores,
                          parser_location=parser_location)
 
-        self.zambia_setup()
+        self.mozambique_setup()
 
         # Migration amplitude:
         self.cb.update_params({
@@ -61,7 +59,6 @@ class MozambiqueExperiment(GriddedConfigBuilder):
 
     def mozambique_setup(self):
         # Uses vector splines from Prashanth's Mozambique entomology calibration
-
         self.africa_setup()
 
         # Vector properties:
@@ -127,7 +124,25 @@ class MozambiqueExperiment(GriddedConfigBuilder):
             }
         })
 
-    def return_cb_for_calibration(self):
-        self.implement_baseline_healthseeking()
-        self.implement_interventions(self.cb, True, True, False, True, False)
-        return self.cb
+    # def return_cb_for_calibration(self):
+    #     self.implement_baseline_healthseeking()
+    #     self.implement_interventions(self.cb, True, True, False, True, False)
+    #     return self.cb
+
+    def larval_params_func_for_calibration(self, grid_cells):
+        return {"LINEAR_SPLINE": np.ones_like(grid_cells)}
+
+
+    # Grid-cell/Node ID
+    @staticmethod
+    def find_cells_for_this_catchment(catch, base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+        # Find which grid cells correspond to a given HFCA
+        df = pd.read_csv(base + "data/mozambique/grid_lookup.csv")
+
+        if catch == 'all':
+            return np.array(df['grid_cell'])
+        else:
+            df_catch = df[df['catchment'] == catch]
+            # df_catch = df[np.logical_or(df['catchment'] == catch.capitalize(),
+            #                             df['catchment'] == catch.lower())]
+            return np.array(df_catch['grid_cell'])

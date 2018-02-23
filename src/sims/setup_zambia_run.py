@@ -7,10 +7,10 @@ from experiment_setup import GriddedInputFilesCreator
 from simtools.SetupParser import SetupParser
 
 
-run_mode = 0
-priority = "Normal"
+run_mode = 1
+priority = "BelowNormal"
 coreset = "emod_abcd"
-parser_location = "LOCAL" #"HPC"
+parser_location = "HPC"
 num_cores = 12
 milen_catch_list = ['bbondo', 'chabbobboma', 'chisanga', 'chiyabi', 'luumbo', 'munyumbwe', 'nyanga chaamwe',
                     'sinafala', 'sinamalima']
