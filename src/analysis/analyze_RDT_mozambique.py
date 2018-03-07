@@ -6,6 +6,7 @@ from simtools.Utilities.Experiments import retrieve_experiment
 import numpy as np
 import pandas as pd
 from gridded_sim_general import *
+from mozambique_experiments import *
 
 class RDTPrevAnalyzer(BaseAnalyzer):
 
@@ -40,15 +41,17 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         # if sim_metadata["__sample_index__"] == 12:  # Motaze iter1
         # if sim_metadata["__sample_index__"] == 20:  # Mapa
         # if sim_metadata["__sample_index__"] == 60:  # pbnb
-        if sim_metadata["__sample_index__"] == 11:
+        if sim_metadata["__sample_index__"] == 0:
             return True
         else:
             return False
 
+        return True
+
     def apply(self, parser):
         exp_name = parser.experiment.exp_name
         # self.catch[parser.sim_id] = exp_name.split('_')[0] # Assumes the experiment name is "CATCHNAME_full"
-        self.catch[parser.sim_id] = "Motaze"
+        self.catch[parser.sim_id] = "Caputine"
 
         pop_data = parser.raw_data[self.filenames[0]]
         prev_data = parser.raw_data[self.filenames[1]]
@@ -83,7 +86,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         sns.set_style("darkgrid")
 
         # start_date = "2007-01-01"  # Day 1 of simulation
-        start_date = "1994-01-01"
+        start_date = "2009-01-01"
         date_format = "%Y-%m-%d"
 
         foo = mdates.strpdate2num(date_format)
@@ -114,7 +117,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         catch = list(self.catch.values())[0]
         # catch = catch.lower()
 
-        catch_cell_ids = find_cells_for_this_catchment(catch,path_from_base='data/mozambique/grid_lookup.csv')
+        catch_cell_ids = MozambiqueExperiment.find_cells_for_this_catchment(catch)
 
         ###############################################################################################################
 
@@ -221,7 +224,7 @@ class RDTPrevAnalyzer(BaseAnalyzer):
         plt.legend()
         # plt.xlim([3000,7000])
         plt.xlim([foo("2014-01-01"), foo("2018-01-01")])
-        plt.ylim([-0.01,0.15])
+        plt.ylim([-0.01,0.25])
 
         plt.tight_layout()
         plt.show()
@@ -234,32 +237,9 @@ if __name__=="__main__":
     am = AnalyzeManager()
 
     # Calibration experiments:
-    # am.add_experiment(retrieve_experiment("09829129-b00b-e811-9415-f0921c16b9e5")) #Mahel
-    # am.add_experiment(retrieve_experiment("11cb8543-e20b-e811-9415-f0921c16b9e5")) #Motaze
-    # am.add_experiment(retrieve_experiment("8853ca79-1c0c-e811-9415-f0921c16b9e5"))
-
-    # am.add_experiment(retrieve_experiment("171711d2-a010-e811-9415-f0921c16b9e5")) #Caputine
-    # am.add_experiment(retrieve_experiment("632dd6f5-a610-e811-9415-f0921c16b9e5")) # Chicutso
-    # am.add_experiment(retrieve_experiment("ef6564ad-a110-e811-9415-f0921c16b9e5"))  # Mahel
-    # am.add_experiment(retrieve_experiment("fd4866f4-a310-e811-9415-f0921c16b9e5"))  # Mapulanguene
-    # am.add_experiment(retrieve_experiment("da1bccd2-a910-e811-9415-f0921c16b9e5"))  # Moine
-    # am.add_experiment(retrieve_experiment("7e10e1d1-a710-e811-9415-f0921c16b9e5"))  # Panjane
-
-    # am.add_experiment(retrieve_experiment("7e10e1d1-a710-e811-9415-f0921c16b9e5"))  # Panjane multi-dose
-
-
-
-    # am.add_experiment(retrieve_experiment("f335b9ab-1f12-e811-9415-f0921c16b9e5")) # Moine DONE
-    # am.add_experiment(retrieve_experiment("8731f656-2a12-e811-9415-f0921c16b9e5")) # Caputine iter6
-    # am.add_experiment(retrieve_experiment("f3ed1863-2b12-e811-9415-f0921c16b9e5"))  # Mahel iter2
-
-    # am.add_experiment(retrieve_experiment("62454c29-1212-e811-9415-f0921c16b9e5"))  # Panjane iter2
-
-    am.add_experiment(retrieve_experiment("354912fd-3612-e811-9415-f0921c16b9e5"))  # Motaze iter4
-    # am.add_experiment(retrieve_experiment("169df5ae-2b12-e811-9415-f0921c16b9e5"))  # Mapulanguene
-
-    # pbnb
-    # am.add_experiment(retrieve_experiment("002e8d2d-4e12-e811-9415-f0921c16b9e5"))  # Caputine
+    # am.add_experiment(retrieve_experiment("af39baf0-4520-e811-a2bf-c4346bcb7274")) #Caputine serial v3
+    # am.add_experiment(retrieve_experiment("3b7195e6-c020-e811-a2bf-c4346bcb7274"))  # Caputine serial v4
+    am.add_experiment(retrieve_experiment("18e36363-0a21-e811-a2bf-c4346bcb7274"))
 
     am.add_analyzer(RDTPrevAnalyzer())
     am.analyze()

@@ -6,13 +6,11 @@ import os
 import json
 import pandas as pd
 import numpy as np
-
+import copy
 import matplotlib
-
-from dtk.tools.demographics.Node import Node, nodeid_from_lat_lon
-
 matplotlib.use('Agg')
 
+from dtk.tools.demographics.Node import Node, nodeid_from_lat_lon
 from dtk.tools.climate.ClimateGenerator import ClimateGenerator
 from dtk.tools.migration.MigrationGenerator import MigrationGenerator
 from dtk.tools.spatialworkflow.DemographicsGenerator import DemographicsGenerator
@@ -79,6 +77,7 @@ class GriddedConfigBuilder:
         self.ensure_filesystem() # Need this to build config-builder
         # Build config-builder
         self.build_cb()
+        self.cb_no_interventions = copy.deepcopy(self.cb)
 
 
     def ensure_filesystem(self):
@@ -102,7 +101,7 @@ class GriddedConfigBuilder:
         self.cb = self.basic_cb()
         self.spatial_cb_setup()
         self.add_reporting_to_cb()
-        self.implement_dummy_healthseeking()
+        self.implement_dummy_healthseeking(self.cb)
 
     def basic_cb(self):
         SetupParser.default_block = self.parser_location
@@ -115,6 +114,10 @@ class GriddedConfigBuilder:
         cb.set_dll_root(self.base + 'bin/')
 
         cb.set_param("Num_Cores", self.num_cores)
+
+        # Reduce StdOut size
+        cb.params['logLevel_default'] = "WARNING"
+        cb.params['Enable_Log_Throttling'] = 1
         return cb
 
     def spatial_cb_setup(self, migration_on=True):
@@ -128,11 +131,14 @@ class GriddedConfigBuilder:
 
         # CLIMATE
         self.cb.update_params({
-            'Air_Temperature_Filename': "Climate/{}_30arcsec_air_temperature_daily.bin".format(self.region),
-            'Land_Temperature_Filename': "Climate/{}_30arcsec_air_temperature_daily.bin".format(self.region),
-            'Rainfall_Filename': "Climate/{}_30arcsec_rainfall_daily.bin".format(self.region),
-            'Relative_Humidity_Filename': "Climate/{}_30arcsec_relative_humidity_daily.bin".format(self.region)
+            "Climate_Model": "CLIMATE_CONSTANT"
         })
+        # self.cb.update_params({
+        #     'Air_Temperature_Filename': "Climate/{}_30arcsec_air_temperature_daily.bin".format(self.region),
+        #     'Land_Temperature_Filename': "Climate/{}_30arcsec_air_temperature_daily.bin".format(self.region),
+        #     'Rainfall_Filename': "Climate/{}_30arcsec_rainfall_daily.bin".format(self.region),
+        #     'Relative_Humidity_Filename': "Climate/{}_30arcsec_relative_humidity_daily.bin".format(self.region)
+        # })
         #######################################################################################################
         # MIGRATION-RELATED PARAMETERS:
         #######################################################################################################
@@ -239,16 +245,16 @@ class GriddedConfigBuilder:
     #################################################################################################
     # INTERVENTIONS (ADDITIONS TO CAMPAIGN FILE)
 
-    def implement_dummy_healthseeking(self):
+    def implement_dummy_healthseeking(self, cb):
         # Implement dummy health-seeking behavior for one day at beginning of simulation, to avoid DrugStatus error.
         start_date = "{}-01-01".format(self.start_year)  # Day 1 of simulation
         date_format = "%Y-%m-%d"
         sim_duration = 365 * self.sim_length_years  # length in days
-        self.cb.params['Simulation_Duration'] = sim_duration
+        cb.params['Simulation_Duration'] = sim_duration
 
         start_date_refmt = convert_to_day(start_date, start_date, date_format)
 
-        add_health_seeking(self.cb,
+        add_health_seeking(cb,
                            start_day=float(start_date_refmt),
                            targets=[{'trigger': 'NewClinicalCase',
                                      'coverage': 0.1,
@@ -277,16 +283,16 @@ class GriddedConfigBuilder:
                            nodes={"class": "NodeSetAll"},
                            duration=float(1))
 
-    def implement_baseline_healthseeking(self):
+    def implement_baseline_healthseeking(self, cb):
         # Implement basic health-seeking behavior for all individuals in simulation
         start_date = "{}-01-01".format(self.start_year)  # Day 1 of simulation
         date_format = "%Y-%m-%d"
         sim_duration = 365 * self.sim_length_years  # length in days
-        self.cb.params['Simulation_Duration'] = sim_duration
+        cb.params['Simulation_Duration'] = sim_duration
 
         # Prevent DTK from spitting out too many messages
-        self.cb.params['logLevel_JsonConfigurable'] = "WARNING"
-        self.cb.params['Disable_IP_Whitelist'] = 1
+        cb.params['logLevel_JsonConfigurable'] = "WARNING"
+        cb.params['Disable_IP_Whitelist'] = 1
 
         # Event information files
 
@@ -310,7 +316,7 @@ class GriddedConfigBuilder:
         for hs in range(len(healthseek_events)):
             node_list = [nodeid_lookup[healthseek_events['grid_cell'][hs]]]
 
-            add_health_seeking(self.cb,
+            add_health_seeking(cb,
                                start_day=float(healthseek_events['simday'][hs]),
                                targets=[{'trigger': 'NewClinicalCase',
                                          'coverage': float(healthseek_events['cov_newclin_youth'][hs]), 'agemin': 0,
@@ -335,15 +341,17 @@ class GriddedConfigBuilder:
                                nodes={"class": "NodeSetNodeList", "Node_List": node_list},
                                duration=float(healthseek_events['duration'][hs]))
 
+        # return cb
+
     def implement_interventions(self, cb, include_itn, include_irs, include_msat, include_mda, include_stepd):
         start_date = "{}-01-01".format(self.start_year)  # Day 1 of simulation
         date_format = "%Y-%m-%d"
         sim_duration = 365 * self.sim_length_years  # length in days
-        self.cb.params['Simulation_Duration'] = sim_duration
+        cb.params['Simulation_Duration'] = sim_duration
 
         # Prevent DTK from spitting out too many messages
-        self.cb.params['logLevel_JsonConfigurable'] = "WARNING"
-        self.cb.params['Disable_IP_Whitelist'] = 1
+        cb.params['logLevel_JsonConfigurable'] = "WARNING"
+        cb.params['Disable_IP_Whitelist'] = 1
 
         # Event information files
         if not self.itn_fn:
@@ -559,7 +567,7 @@ class GriddedConfigBuilder:
                                      include_msat=False,
                                      include_mda=False,
                                      include_stepd=False):
-        self.implement_baseline_healthseeking()
+        self.implement_baseline_healthseeking(self.cb)
         self.implement_interventions(self.cb, include_itn, include_irs, include_msat, include_mda, include_stepd)
         return self.cb
 

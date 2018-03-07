@@ -66,6 +66,7 @@ class MozambiqueExperiment(GriddedConfigBuilder):
 
         # Arabiensis
         set_species_param(self.cb, 'arabiensis', 'Larval_Habitat_Types', {
+            "TEMPORARY_RAINFALL": 2.2e7,
             "LINEAR_SPLINE": {
                 "Capacity_Distribution_Per_Year": {
                     "Times": [0.0, 30.417, 60.833, 91.25, 121.667, 152.083, 182.5, 212.917, 243.333, 273.75, 304.167,
@@ -90,6 +91,7 @@ class MozambiqueExperiment(GriddedConfigBuilder):
 
         # Funestus
         set_species_param(self.cb, 'funestus', 'Larval_Habitat_Types', {
+            "WATER_VEGETATION": 2e3,
             "LINEAR_SPLINE": {
                 "Capacity_Distribution_Per_Year": {
                     "Times": [
@@ -130,7 +132,9 @@ class MozambiqueExperiment(GriddedConfigBuilder):
     #     return self.cb
 
     def larval_params_func_for_calibration(self, grid_cells):
-        return {"LINEAR_SPLINE": np.ones_like(grid_cells)}
+        return {"LINEAR_SPLINE": np.ones_like(grid_cells),
+                "WATER_VEGETATION": np.ones_like(grid_cells),
+                "TEMPORARY_RAINFALL": np.ones_like(grid_cells)}
 
 
     # Grid-cell/Node ID
@@ -146,3 +150,27 @@ class MozambiqueExperiment(GriddedConfigBuilder):
             # df_catch = df[np.logical_or(df['catchment'] == catch.capitalize(),
             #                             df['catchment'] == catch.lower())]
             return np.array(df_catch['grid_cell'])
+
+    @staticmethod
+    def find_bairros_for_this_catchment(catch, base='C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'):
+        catch_cells = MozambiqueExperiment.find_cells_for_this_catchment(catch, base=base)
+
+        df = pd.read_csv(base + "data/mozambique/grid_lookup_with_neighborhood.csv")
+        in_catch = np.in1d(df['grid_cell'], catch_cells)
+
+        bairro_name_list = sorted(list(set(df['bairro_name'][in_catch])))
+        bairro_num_list = sorted(list(set(df['bairro'][in_catch])))
+        num_bairros = len(bairro_num_list)
+
+        dd = {"bairro_name_list": bairro_name_list,
+              "bairro_num_list": bairro_num_list,
+              "num_bairros": num_bairros}
+
+        for bairro_num in bairro_num_list:
+            in_bairro = df['bairro'] == bairro_num
+            in_catch_bairro = np.logical_and(in_catch, in_bairro)
+            dd[bairro_num] = sorted(list(set(df['grid_cell'][in_catch_bairro])))
+
+        return dd
+
+

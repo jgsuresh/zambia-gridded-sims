@@ -20,7 +20,8 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
 
     def __init__(self, site):
         super().__init__(site)
-        self.start_date = "1994-01-01"
+        self.end_year = 2020
+        # self.start_date = "1994-01-01"
         self.base = 'C:/Users/jsuresh/OneDrive - IDMOD/Projects/zambia-gridded-sims/'
         self.error = {}
 
@@ -48,6 +49,10 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         node_ids = pop_data['nodeids']
         n_tstep = pop_data['n_tstep']
         n_nodes = pop_data['n_nodes']
+
+        start_year = int(self.end_year-n_tstep/365)
+        self.start_date = "{}-01-01".format(start_year)
+
 
         # Get initial population of nodes:
         pop_init = np.zeros(n_nodes)
@@ -168,6 +173,8 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         self.n_samples = n_samples
         self.n_seeds = n_seeds
 
+
+        #fixme Clean up with groupby and aggregation
         # if n_seeds =
         for jj in range(n_samples):
             for ii in range(1, n_seeds + 1):
@@ -205,10 +212,12 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         #
         #     data['prev_sim_sample{}'.format(j)] = pd.Series(np.array(hold)/run_number_max,index=data.index)
 
-
+        # Get rid of duplicate columns
+        data = data.loc[:, ~data.columns.duplicated()]
+        data = data.rename(columns={'round_x': 'round'})
 
         sample_col_list = ["prev_sim_sample{}".format(sample_ind) for sample_ind in range(n_samples)]
-        other_col_list = ["grid_cell","N","date","prev"]
+        other_col_list = ["grid_cell","N","date","prev","round"]
         full_col_list = sample_col_list + other_col_list
 
         self.data = data[full_col_list].copy()
@@ -242,7 +251,7 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
             # sample_col_name = "prev_sim_sample{}".format(i)
 
             # Minus sign very important, because OptimTool is trying to maximize the result
-            result_arr[i] = self.calc_mse_sqrt(self.data,i) #fixme no negative for pbnb
+            result_arr[i] = -1. * self.calc_mse_sqrt(self.data,i)
 
         self.result = pd.Series(result_arr)
         self.result.index.name = "sample"
@@ -253,18 +262,39 @@ class CalibMozambiqueAnalyzer(BaseCalibrationAnalyzer):
         sim_data = np.array(data_df["prev_sim_sample{}".format(sample_index)])
         ref_data = np.array(data_df["prev"])
         pops = np.array(data_df["N"])
+        rounds = np.array(data_df["round"])
 
-        supersimple = np.abs(np.sum(pops*ref_data)-np.sum(pops*sim_data))
-        improved = np.abs(np.sum(pops*pops*ref_data)-np.sum(pops*pops*sim_data))
-
+        # Method 1: problem here is that aggregation should happen first before the error is calculated
         # mse = np.sum(pops * (sim_data - ref_data)**2.)/np.sum(pops)
         # # mse = np.sum(pops**2 * (sim_data - ref_data) ** 2.) / np.sum(pops**2)
         # # mse = np.sum(pops * np.sqrt((sim_data - ref_data)**2)) / np.sum(pops)
         # mse_sqrt = np.sqrt(mse)
-        #
-        # # return mse
         # return mse_sqrt
-        return improved
+
+        # Method 2: improvement from method 1, but still problematic because it is aggregating the data in time
+        # supersimple = np.abs(np.sum(pops*ref_data)-np.sum(pops*sim_data))
+        # improved = np.abs(np.sum(pops*pops*ref_data)-np.sum(pops*pops*sim_data))
+        # return improved
+
+        # Method 3: Do method 2, but on a per-round basis
+        n_rounds = np.max(rounds)
+        error_sum = 0.
+        for i in range(n_rounds):
+            rd_num = i+1
+            this_rd = rounds == rd_num
+            pop_this_rd = np.sum(pops[this_rd])
+
+            if i == rd_num: #fixme was 0
+                rd_weight = 3*np.sqrt(pop_this_rd) # Give first observation a higher weight
+            else:
+                rd_weight = np.sqrt(pop_this_rd)
+
+            error_sum += rd_weight * np.abs(np.sum(pops[this_rd]*pops[this_rd]*ref_data[this_rd]) -\
+                                            np.sum(pops[this_rd]*pops[this_rd]*sim_data[this_rd]))
+        # return np.log10(error_sum) # squash things a bit by taking log10?
+        return error_sum
+
+
 
     # @classmethod
     # def plot_comparison(cls, fig, data, **kwargs):
